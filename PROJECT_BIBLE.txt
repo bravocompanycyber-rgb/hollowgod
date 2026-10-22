@@ -1,0 +1,14 @@
+HOLLOWGOD - PROJECT BIBLE (paste this at the start of any new chat)
+Game: top-down 2D action roguelite, dark fantasy, global mythology underworlds, modern city (Meridian).
+Engine: Godot 3.5 (GLES2). Dev PC: HP Compaq dx7500, Core 2 Duo E7300, 4 GB RAM, Intel G45.
+Hero: Threshold Keeper, guided by Oru (dying guide of souls). Hub: Terminus Station.
+Choices: Reckonings (Restore / Bind / Release), Bonds, Bargains. Endings: Keeper, Usurper, Wake, Ferryman, Hollow, Truth.
+Launch Lines: Sunken Hall (Egypt), Rime Road (Norse), Obsidian Road (Aztec), Yomi Station (Japan), Dust Court (Mesopotamia), The Hollow.
+Rules: complete files only; user is new to development; keep steps small; user tests and sends screenshots/errors.
+
+PROGRESS LOG
+- Prototype 0.1: move, dash, attack, 2 enemy types, 3 waves, lantern lighting, shake + hit-stop. Runs smooth on user's PCs; looked too dark/basic.
+- Prototype 0.2: brighter Sunken Hall visuals, wisp enemy (bolts), 8 Gifts (pick 1 of 3 per wave), Jackal Warden boss, first Reckoning choice saved in Ledger (user://ledger.json), damage numbers, vignette.
+Files: scripts/Main.gd (flow, HUD, cards), Player.gd, Enemy.gd, Boss.gd, Projectile.gd, Gifts.gd, Ledger.gd (autoload), FX.gd (autoload), Inputs.gd (autoload).
+Second PC (HP Compaq 6200 Pro, i3-2130, 8GB, Intel HD, Win10) runs everything fine; still GLES2 only (no Godot 4).
+NEXT: user feedback on 0.2; then multiple rooms with doors, hub (Terminus) with Oru dialogue, real art pass.
