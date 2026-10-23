@@ -1,0 +1,4 @@
+DejaVu fonts (DejaVuSans.ttf, DejaVuSerif-Bold.ttf) are free fonts based on Bitstream Vera.
+They may be used, copied, modified and redistributed, including in commercial products, under the
+DejaVu Fonts License: https://dejavu-fonts.github.io/License.html
+Replace them later with fonts that match the game's look (for example from Google Fonts, OFL licence).

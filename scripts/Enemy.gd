@@ -6,10 +6,10 @@ signal died
 const ProjectileScript = preload("res://scripts/Projectile.gd")
 
 var kind = "husk"
-var hp = 3
+var hp = 30.0
 var speed = 100.0
 var radius = 12.0
-var contact_damage = 1
+var contact_damage = 10
 var color = Color(0.95, 0.3, 0.35)
 var target = null
 var knock = Vector2.ZERO
@@ -22,30 +22,32 @@ var dead = false
 var shoot_timer = 1.5
 var strafe = 1.0
 var charging = false
+var hp_mult = 1.0
 
 func setup(p_kind, p_target):
     kind = p_kind
     target = p_target
     strafe = 1.0 if randf() < 0.5 else -1.0
     if kind == "brute":
-        hp = 8
+        hp = 80.0
         speed = 62.0
         radius = 20.0
-        contact_damage = 2
+        contact_damage = 20
         color = Color(0.7, 0.4, 0.95)
     elif kind == "wisp":
-        hp = 2
+        hp = 20.0
         speed = 85.0
         radius = 10.0
-        contact_damage = 1
+        contact_damage = 8
         color = Color(0.3, 0.9, 1.0)
         shoot_timer = rand_range(1.2, 2.2)
     else:
-        hp = 3
+        hp = 30.0
         speed = 100.0
         radius = 12.0
-        contact_damage = 1
+        contact_damage = 10
         color = Color(0.95, 0.3, 0.35)
+    hp *= hp_mult
 
 func _ready():
     add_to_group("enemies")
@@ -83,7 +85,7 @@ func _physics_process(delta):
             shoot_timer -= delta
             charging = shoot_timer < 0.5
             if shoot_timer <= 0.0:
-                _shoot(dir, 250.0, 1)
+                _shoot(dir, 250.0, 10)
                 shoot_timer = rand_range(2.0, 2.8)
                 charging = false
         var v = move_dir * speed + knock
@@ -102,16 +104,21 @@ func _shoot(dir, spd, dmg):
     p.target = target
     p.color = color
     get_parent().add_child(p)
+    Sfx.play("shoot", -8.0)
 
-func take_hit(amount, dir):
+func take_hit(amount, dir, crit = false):
     if dead or spawning:
         return
     hp -= amount
     knock = dir * (220.0 if kind == "brute" else 380.0)
     flash = 0.1
     FX.shake(3.0)
-    FX.popup(global_position, amount, Color(1.0, 0.92, 0.5))
+    if crit:
+        FX.popup(global_position, str(int(round(amount))) + "!", Color(1.0, 0.55, 0.2), 26)
+    else:
+        FX.popup(global_position, int(round(amount)), Color(1.0, 0.92, 0.5), 18)
     FX.burst(global_position, color, 6, 120.0)
+    Sfx.play("hit", -3.0)
     if hp <= 0:
         _die()
 
@@ -120,6 +127,7 @@ func _die():
     remove_from_group("enemies")
     FX.burst(global_position, color, 24, 180.0)
     FX.shake(4.0)
+    Sfx.play("kill", -2.0)
     emit_signal("died")
     queue_free()
 

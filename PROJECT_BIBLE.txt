@@ -11,4 +11,6 @@ PROGRESS LOG
 - Prototype 0.2: brighter Sunken Hall visuals, wisp enemy (bolts), 8 Gifts (pick 1 of 3 per wave), Jackal Warden boss, first Reckoning choice saved in Ledger (user://ledger.json), damage numbers, vignette.
 Files: scripts/Main.gd (flow, HUD, cards), Player.gd, Enemy.gd, Boss.gd, Projectile.gd, Gifts.gd, Ledger.gd (autoload), FX.gd (autoload), Inputs.gd (autoload).
 Second PC (HP Compaq 6200 Pro, i3-2130, 8GB, Intel HD, Win10) runs everything fine; still GLES2 only (no Godot 4).
-NEXT: user feedback on 0.2; then multiple rooms with doors, hub (Terminus) with Oru dialogue, real art pass.
+- Prototype 0.3 (Terminus Update): Title + save/continue, Hub with 4 NPCs (Oru, Mara, Sable, Bryn) + branching dialogue, Forge (5 permanent upgrades), Ledger, Keeper level/XP, 5-room runs with doors/rewards, elite room, Shrine bargains, boss + Reckoning, gift rarity + descriptions, crits, pause menu, procedural SFX/music, bundled DejaVu fonts.
+Scenes: Title, Hub, Run. Autoloads: Inputs, FX, Game (save/profile), Sfx.
+NEXT: user feedback on 0.3; then Line Two (Rime Road), more enemies/gifts, Dr. Reyes + Stationmaster, real art pass (sprites/tiles), real audio, controller support.

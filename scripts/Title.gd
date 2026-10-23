@@ -1,0 +1,106 @@
+extends Node2D
+# Title screen: Continue, New Game, Controls, Quit.
+
+var confirm_new = false
+var buttons = []
+var new_button = null
+var controls_label = null
+var msg = null
+
+func _ready():
+	randomize()
+	FX.reset()
+	Sfx.music("hub")
+	var layer = CanvasLayer.new()
+	add_child(layer)
+	var bg = ColorRect.new()
+	bg.rect_size = Vector2(1280, 720)
+	bg.color = Color(0.04, 0.04, 0.08)
+	layer.add_child(bg)
+	var d = CPUParticles2D.new()
+	d.position = Vector2(640, 360)
+	d.amount = 70
+	d.lifetime = 10.0
+	d.preprocess = 10.0
+	d.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	d.emission_rect_extents = Vector2(640, 360)
+	d.gravity = Vector2(0, -10)
+	d.initial_velocity = 8.0
+	d.spread = 180.0
+	d.scale_amount = 3.0
+	d.color = Color(1.0, 0.8, 0.4, 0.45)
+	add_child(d)
+	FX.add_vignette(layer)
+	var t = FX.label(layer, Vector2(0, 110), "HOLLOWGOD", 96, Color(0.96, 0.8, 0.35), true)
+	t.rect_size = Vector2(1280, 120)
+	t.align = Label.ALIGN_CENTER
+	var tg = FX.label(layer, Vector2(0, 232), "Descend. Choose. Become what the gods feared.", 22, Color(0.85, 0.82, 0.9))
+	tg.rect_size = Vector2(1280, 30)
+	tg.align = Label.ALIGN_CENTER
+	var items = [["Continue", "continue"], ["New Game", "new"], ["Controls", "controls"], ["Quit", "quit"]]
+	var y = 340
+	for it in items:
+		var b = Button.new()
+		b.text = it[0]
+		b.rect_position = Vector2(460, y)
+		b.rect_size = Vector2(360, 50)
+		var f = FX.font(22)
+		if f != null:
+			b.add_font_override("font", f)
+		b.add_color_override("font_color", Color(1, 0.95, 0.85))
+		b.add_color_override("font_color_disabled", Color(0.5, 0.5, 0.55))
+		b.add_stylebox_override("normal", FX.card_style(Color(0.08, 0.08, 0.14, 0.95), Color(0.6, 0.48, 0.2)))
+		b.add_stylebox_override("hover", FX.card_style(Color(0.18, 0.15, 0.26, 0.98), Color(1.0, 0.85, 0.4)))
+		b.add_stylebox_override("focus", FX.card_style(Color(0.18, 0.15, 0.26, 0.98), Color(1.0, 0.85, 0.4), 3))
+		b.add_stylebox_override("pressed", FX.card_style(Color(0.24, 0.2, 0.3), Color(1.0, 0.95, 0.6)))
+		b.add_stylebox_override("disabled", FX.card_style(Color(0.05, 0.05, 0.08, 0.9), Color(0.25, 0.22, 0.15)))
+		layer.add_child(b)
+		b.connect("pressed", self, "_act", [it[1]])
+		buttons.append(b)
+		if it[1] == "continue":
+			b.disabled = not Game.has_save()
+		if it[1] == "new":
+			new_button = b
+		y += 62
+	for b in buttons:
+		if not b.disabled:
+			b.grab_focus()
+			break
+	controls_label = FX.label(layer, Vector2(0, 340), "WASD  move      Mouse  aim      Click / J  attack      Space  dash\nE / Enter  talk and confirm      1 2 3  pick a card      Esc  pause      F11  fullscreen", 18, Color(0.95, 0.95, 1.0))
+	controls_label.rect_size = Vector2(1280, 80)
+	controls_label.align = Label.ALIGN_CENTER
+	controls_label.visible = false
+	msg = FX.label(layer, Vector2(0, 600), "", 18, Color(1.0, 0.6, 0.5))
+	msg.rect_size = Vector2(1280, 24)
+	msg.align = Label.ALIGN_CENTER
+	var v = FX.label(layer, Vector2(24, 686), "Prototype " + Game.VERSION, 14, Color(1, 1, 1, 0.5))
+
+func _input(event):
+	if event.is_action_pressed("fullscreen"):
+		OS.window_fullscreen = not OS.window_fullscreen
+	if event.is_action_pressed("pause") and controls_label.visible:
+		_show_controls(false)
+
+func _show_controls(on):
+	controls_label.visible = on
+	for b in buttons:
+		b.visible = not on
+
+func _act(id):
+	Sfx.play("click")
+	if id == "continue":
+		if Game.load_game():
+			Game.goto("res://scenes/Hub.tscn")
+		else:
+			msg.text = "Could not load the save file."
+	elif id == "new":
+		if Game.has_save() and not confirm_new:
+			confirm_new = true
+			new_button.text = "Erase save and start over? Click again"
+			return
+		Game.new_game()
+		Game.goto("res://scenes/Hub.tscn")
+	elif id == "controls":
+		_show_controls(true)
+	elif id == "quit":
+		get_tree().quit()

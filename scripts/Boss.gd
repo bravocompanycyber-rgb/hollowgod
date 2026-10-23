@@ -4,7 +4,7 @@ extends "res://scripts/Enemy.gd"
 signal hp_changed(hp, max_hp)
 signal summon_request(kind, count)
 
-var max_hp = 60
+var max_hp = 600
 var state = "chase"
 var t = 1.8
 var next_attack = "charge"
@@ -16,11 +16,11 @@ var ring_offset = 0.0
 func setup(p_kind, p_target):
     kind = "warden"
     target = p_target
-    hp = 60
-    max_hp = 60
+    hp = 600
+    max_hp = 600
     speed = 75.0
     radius = 30.0
-    contact_damage = 2
+    contact_damage = 25
     color = Color(0.95, 0.75, 0.25)
     spawn_total = 1.4
     spawn_left = 1.4
@@ -95,18 +95,23 @@ func _fire_ring():
     var n = 10 if phase == 1 else 16
     ring_offset += 0.3
     for i in range(n):
-        _shoot(Vector2.RIGHT.rotated(TAU * i / n + ring_offset), 190.0, 1)
+        _shoot(Vector2.RIGHT.rotated(TAU * i / n + ring_offset), 190.0, 12)
     FX.shake(5.0)
+    Sfx.play("boss", -2.0)
 
-func take_hit(amount, dir):
+func take_hit(amount, dir, crit = false):
     if dead or spawning:
         return
     hp -= amount
     flash = 0.08
     FX.shake(3.0)
-    FX.popup(global_position, amount, Color(1.0, 0.92, 0.5))
+    if crit:
+        FX.popup(global_position, str(int(round(amount))) + "!", Color(1.0, 0.55, 0.2), 28)
+    else:
+        FX.popup(global_position, int(round(amount)), Color(1.0, 0.92, 0.5), 20)
     FX.burst(global_position, color, 6, 120.0)
-    emit_signal("hp_changed", max(hp, 0), max_hp)
+    Sfx.play("hit", -3.0)
+    emit_signal("hp_changed", int(max(hp, 0)), max_hp)
     if hp <= 0:
         _die()
 
@@ -117,6 +122,7 @@ func _die():
     FX.burst(global_position, Color(1, 1, 1), 30, 160.0)
     FX.shake(14.0)
     FX.hitstop(220)
+    Sfx.play("kill")
     emit_signal("died")
     queue_free()
 

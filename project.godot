@@ -11,22 +11,25 @@ config_version=4
 [application]
 
 config/name="HOLLOWGOD"
-run/main_scene="res://scenes/Main.tscn"
+run/main_scene="res://scenes/Title.tscn"
 
 [autoload]
 
-FX="*res://scripts/FX.gd"
 Inputs="*res://scripts/Inputs.gd"
-Ledger="*res://scripts/Ledger.gd"
+FX="*res://scripts/FX.gd"
+Game="*res://scripts/Game.gd"
+Sfx="*res://scripts/Sfx.gd"
 
 [display]
 
 window/size/width=1280
 window/size/height=720
+window/size/test_width=1152
+window/size/test_height=648
 window/stretch/mode="2d"
 window/stretch/aspect="keep"
 
 [rendering]
 
 quality/driver/driver_name="GLES2"
-environment/default_clear_color=Color( 0.04, 0.04, 0.07, 1 )
+environment/default_clear_color=Color( 0.03, 0.03, 0.06, 1 )
