@@ -2,7 +2,7 @@ extends Node2D
 # An enemy bolt. Hurts the player on touch. Your sword can destroy it.
 
 var vel = Vector2.ZERO
-var damage = 1
+var damage = 10
 var life = 5.0
 var radius = 6.0
 var target = null
@@ -21,7 +21,7 @@ func _physics_process(delta):
     if not main.ARENA.has_point(position):
         queue_free()
         return
-    for r in main.PILLARS:
+    for r in main.pillars:
         if r.has_point(position):
             FX.burst(global_position, color, 5, 80.0)
             queue_free()
