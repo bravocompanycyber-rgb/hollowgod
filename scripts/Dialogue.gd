@@ -49,6 +49,23 @@ static func _oru(d):
                 ["oru", "We will need to look deeper."]]
         lines.append(["oru", "Before it fell, the Warden whispered a name. The Hollow. Whatever eats the gods lives at the very bottom of all the lines."])
         return {"key": "oru_warden", "lines": lines, "choices": []}
+    if d["wins"] >= 1 and _seen(d, "oru_warden") and not _seen(d, "oru_rime"):
+        return {"key": "oru_rime", "lines": [
+            ["oru", "Line Two is open. The Rime Road. The Norse dead keep their halls cold and their grudges colder."],
+            ["oru", "Their ruler, the Frost Jarl, never forgave anyone for anything. Expect to be tested."],
+            ["oru", "Take Gifts. Take Bryn's steel. And do not stand where the floor is about to break."]], "choices": []}
+    if int(d["cleared"].get("rime", 0)) >= 1 and not _seen(d, "oru_jarl"):
+        var j = d["jarl"]
+        var jl = []
+        if j == "restore":
+            jl = [["oru", "You rekindled the Jarl's hearth. The Rime Road is warm for the first time in an age."]]
+        elif j == "bind":
+            jl = [["oru", "You bound the Jarl's frost to your blade. I can feel the cold from here."]]
+        else:
+            jl = [["oru", "You let the Jarl go. The wind sounds almost relieved."]]
+        jl.append(["oru", "Two gods spoke the same word before they fell. The Hollow. It waits at the bottom of every line."])
+        jl.append(["oru", "More lines will open. For now, rest."])
+        return {"key": "oru_jarl", "lines": jl, "choices": []}
     var idle = [
         [["oru", "The tunnels are quiet. That is never a good sign."]],
         [["oru", "Remember: swat the bolts, dodge the charges, and do not stand still."]],

@@ -23,30 +23,53 @@ var shoot_timer = 1.5
 var strafe = 1.0
 var charging = false
 var hp_mult = 1.0
+var visual = "zombie"
+var theme = "sunken"
+var tint = Color(1, 1, 1)
+var cstate = "idle"
+var ct = 0.0
+var cdir = Vector2.RIGHT
+var cooldown = 2.0
+var clock = 0.0
+var face_left = false
 
 func setup(p_kind, p_target):
     kind = p_kind
     target = p_target
     strafe = 1.0 if randf() < 0.5 else -1.0
+    clock = randf() * 4.0
+    var rime = theme == "rime"
+    tint = Color(0.78, 0.92, 1.25) if rime else Color(1, 1, 1)
     if kind == "brute":
         hp = 80.0
-        speed = 62.0
-        radius = 20.0
+        speed = 72.0
+        radius = 30.0
         contact_damage = 20
         color = Color(0.7, 0.4, 0.95)
+        visual = "big_zombie" if rime else ["ogre", "big_zombie"][randi() % 2]
     elif kind == "wisp":
         hp = 20.0
-        speed = 85.0
-        radius = 10.0
+        speed = 95.0
+        radius = 13.0
         contact_damage = 8
         color = Color(0.3, 0.9, 1.0)
         shoot_timer = rand_range(1.2, 2.2)
+        visual = "orc_shaman" if rime else "necromancer"
+    elif kind == "charger":
+        hp = 40.0
+        speed = 105.0
+        radius = 15.0
+        contact_damage = 14
+        color = Color(1.0, 0.6, 0.25)
+        cooldown = rand_range(1.2, 2.6)
+        visual = ["wogol", "masked_orc"][randi() % 2] if rime else ["imp", "chort"][randi() % 2]
     else:
         hp = 30.0
-        speed = 100.0
-        radius = 12.0
+        speed = 118.0
+        radius = 14.0
         contact_damage = 10
         color = Color(0.95, 0.3, 0.35)
+        visual = ["ice_zombie", "skeleton", "tiny_zombie"][randi() % 3] if rime else ["zombie", "tiny_zombie", "skeleton", "goblin"][randi() % 4]
     hp *= hp_mult
 
 func _ready():
@@ -62,6 +85,7 @@ func _ready():
 func _physics_process(delta):
     if dead:
         return
+    clock += delta
     flash = max(0.0, flash - delta)
     touch_cooldown = max(0.0, touch_cooldown - delta)
     if spawning:
@@ -76,19 +100,40 @@ func _physics_process(delta):
         var move_dir = dir
         if kind == "wisp":
             var dist = to_t.length()
-            if dist > 330.0:
+            if dist > 360.0:
                 move_dir = dir
-            elif dist < 230.0:
+            elif dist < 250.0:
                 move_dir = -dir
             else:
                 move_dir = dir.rotated(PI / 2.0 * strafe)
             shoot_timer -= delta
             charging = shoot_timer < 0.5
             if shoot_timer <= 0.0:
-                _shoot(dir, 250.0, 10)
+                _shoot(dir, 270.0, 10)
                 shoot_timer = rand_range(2.0, 2.8)
                 charging = false
+        face_left = dir.x < 0.0
         var v = move_dir * speed + knock
+        if kind == "charger":
+            ct -= delta
+            if cstate == "idle":
+                cooldown -= delta
+                if cooldown <= 0.0 and to_t.length() < 440.0:
+                    cstate = "windup"
+                    ct = 0.6
+                    cdir = dir
+            elif cstate == "windup":
+                v = knock
+                charging = true
+                if ct <= 0.0:
+                    cstate = "dash"
+                    ct = 0.45
+                    charging = false
+            elif cstate == "dash":
+                v = cdir * 600.0 + knock
+                if ct <= 0.0:
+                    cstate = "idle"
+                    cooldown = rand_range(2.0, 3.2)
         knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
         move_and_slide(v)
         if to_t.length() < radius + target.RADIUS + 2.0 and touch_cooldown <= 0.0:
@@ -98,7 +143,7 @@ func _physics_process(delta):
 
 func _shoot(dir, spd, dmg):
     var p = ProjectileScript.new()
-    p.position = global_position + dir * (radius + 6.0)
+    p.position = global_position + dir * (radius + 8.0) + Vector2(0, -radius * 0.6)
     p.vel = dir * spd
     p.damage = dmg
     p.target = target
@@ -110,7 +155,7 @@ func take_hit(amount, dir, crit = false):
     if dead or spawning:
         return
     hp -= amount
-    knock = dir * (220.0 if kind == "brute" else 380.0)
+    knock = dir * (240.0 if kind == "brute" else 420.0)
     flash = 0.1
     FX.shake(3.0)
     if crit:
@@ -132,21 +177,23 @@ func _die():
     queue_free()
 
 func _draw():
+    var anchor = Vector2(0, radius * 0.85)
+    var sc = Art.SCALE
     if spawning:
         var k = clamp(spawn_left / spawn_total, 0.0, 1.0)
-        draw_arc(Vector2.ZERO, radius + 4.0 + 14.0 * k, 0.0, TAU, 24, Color(color.r, color.g, color.b, 0.9 - 0.5 * k), 2.0)
-        draw_circle(Vector2.ZERO, radius * (1.0 - k), Color(color.r, color.g, color.b, 0.35))
+        draw_arc(Vector2.ZERO, radius + 4.0 + 16.0 * k, 0.0, TAU, 24, Color(color.r, color.g, color.b, 0.9 - 0.5 * k), 2.0)
+        Art.draw(self, Art.frame_name(visual + "_idle_anim", clock, 6.0), anchor, sc, face_left, Color(tint.r, tint.g, tint.b, 0.55 * (1.0 - k)))
         return
-    var c = color
+    Art.shadow(self, anchor, radius * 1.1)
+    var mod = tint
     if flash > 0.0:
-        c = Color(1, 1, 1)
-    draw_circle(Vector2.ZERO, radius + 5.0, Color(color.r, color.g, color.b, 0.16))
-    draw_circle(Vector2.ZERO, radius, c)
-    draw_circle(Vector2.ZERO, radius * 0.6, Color(c.r * 0.3, c.g * 0.3, c.b * 0.3))
-    if charging:
-        draw_arc(Vector2.ZERO, radius + 7.0, 0.0, TAU, 20, Color(1, 1, 1, 0.8), 2.0)
-    if target != null and is_instance_valid(target):
-        var d = (target.global_position - global_position).normalized()
-        var side = d.rotated(PI / 2.0)
-        draw_circle(d * radius * 0.5 + side * radius * 0.3, radius * 0.17, Color(1.0, 0.95, 0.6))
-        draw_circle(d * radius * 0.5 - side * radius * 0.3, radius * 0.17, Color(1.0, 0.95, 0.6))
+        mod = Color(2.6, 2.6, 2.6)
+    if kind == "charger" and cstate == "windup":
+        draw_line(Vector2.ZERO, cdir * 300.0, Color(1.0, 0.4, 0.2, 0.6), 4.0)
+        mod = Color(tint.r * 1.5, tint.g * 0.8, tint.b * 0.7)
+    var fname = Art.frame_name(visual + "_run_anim", clock, 8.0)
+    if not Art.draw(self, fname, anchor, sc, face_left, mod):
+        draw_circle(Vector2.ZERO, radius, color)
+    if kind == "wisp" and charging:
+        draw_arc(Vector2.ZERO, radius + 8.0, 0.0, TAU, 20, Color(0.7, 1.0, 1.0, 0.9), 2.5)
+        draw_circle(Vector2(0, -radius), 6.0, Color(0.5, 1.0, 1.0, 0.5))

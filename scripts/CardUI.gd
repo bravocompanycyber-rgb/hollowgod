@@ -68,14 +68,21 @@ func rebuild():
         var hdr_text = o["name"]
         if n > 1:
             hdr_text = "[%d] %s" % [i + 1, o["name"]]
+        var cpl = max(8.0, (w - 28.0) / 11.0)
+        var lines = int(ceil(float(hdr_text.length()) / cpl))
+        var off = (lines - 1) * 24
         var hdr = FX.label(b, Vector2(14, 14), hdr_text, 19, Color(1.0, 0.92, 0.65, alpha), true)
-        hdr.rect_size = Vector2(w - 28, 26)
+        hdr.autowrap = true
+        hdr.rect_size = Vector2(w - 28, 26 * lines)
         if o.get("tag", "") != "":
-            var tg = FX.label(b, Vector2(14, 46), o["tag"], 14, o.get("tag_color", Color(0.8, 0.8, 0.85)))
+            var tg = FX.label(b, Vector2(14, 46 + off), o["tag"], 14, o.get("tag_color", Color(0.8, 0.8, 0.85)))
             tg.modulate.a = alpha
-        var d = FX.label(b, Vector2(14, 78), o.get("desc", ""), 16, Color(0.9, 0.9, 0.95, alpha))
+        var dtext = o.get("desc", "")
+        var dsize = 16 if dtext.length() <= 150 or n == 1 else 14
+        var d = FX.label(b, Vector2(14, 78 + off), dtext, dsize, Color(0.9, 0.9, 0.95, alpha))
+        d.clip_text = true
         d.autowrap = true
-        d.rect_size = Vector2(w - 28, 120)
+        d.rect_size = Vector2(w - 28, 140 - off)
         if o.get("foot", "") != "":
             var f = FX.label(b, Vector2(14, h - 38), o["foot"], 15, Color(0.7, 0.92, 1.0, alpha))
             f.rect_size = Vector2(w - 28, 22)

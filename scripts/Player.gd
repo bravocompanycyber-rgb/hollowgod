@@ -5,8 +5,8 @@ extends KinematicBody2D
 signal died
 signal hp_changed(hp, max_hp)
 
-const RADIUS = 11.0
-const DASH_SPEED = 660.0
+const RADIUS = 13.0
+const DASH_SPEED = 760.0
 const DASH_TIME = 0.16
 
 var combat = true
@@ -14,12 +14,12 @@ var can_attack = true
 var frozen = false
 
 # Stats (Gifts, Forge and level change these)
-var speed = 230.0
-var accel = 2400.0
-var friction = 2800.0
+var speed = 265.0
+var accel = 2800.0
+var friction = 3200.0
 var dash_cooldown = 0.55
 var attack_cooldown = 0.30
-var attack_range = 80.0
+var attack_range = 96.0
 var attack_arc = 2.0
 var damage_base = 10.0
 var dmg_mult = 1.0
@@ -44,6 +44,8 @@ var attack_cooldown_left = 0.0
 var attack_vis = 0.0
 var invuln = 0.0
 var trail = []
+var aim_mode = "mouse"
+var last_mouse = Vector2.ZERO
 var dash_hit = []
 var cam = null
 var light = null
@@ -60,7 +62,7 @@ func _ready():
     add_child(cs)
     light = Light2D.new()
     light.texture = FX.light_texture()
-    light.texture_scale = 6.0
+    light.texture_scale = 7.0
     light.color = Color(1.0, 0.86, 0.6)
     light.energy = 0.95
     add_child(light)
@@ -75,7 +77,7 @@ func setup_from_profile():
     max_hp = 100 + Game.bonus_hp()
     hp = max_hp
     dmg_mult = Game.bonus_damage()
-    speed = 230.0 * Game.bonus_speed()
+    speed = 265.0 * Game.bonus_speed()
     dash_cooldown = 0.55 * Game.dash_cd_mult()
     second_wind = Game.has_flag("second_wind")
 
@@ -148,10 +150,6 @@ func _physics_process(delta):
     invuln = max(0.0, invuln - delta)
     dash_time_left = max(0.0, dash_time_left - delta)
 
-    var to_mouse = get_global_mouse_position() - global_position
-    if to_mouse.length() > 4.0:
-        facing = to_mouse.normalized()
-
     var input = Vector2.ZERO
     if not frozen:
         input = Vector2(
@@ -159,8 +157,9 @@ func _physics_process(delta):
             Input.get_action_strength("move_down") - Input.get_action_strength("move_up"))
         if input.length() > 1.0:
             input = input.normalized()
-        if not combat and input.length() > 0.1:
-            facing = input.normalized()
+    _update_aim(input)
+    if not frozen and not combat and input.length() > 0.1:
+        facing = input.normalized()
 
     if not frozen and Input.is_action_just_pressed("dash") and dash_cooldown_left <= 0.0 and dash_time_left <= 0.0:
         if input.length() > 0.1:
@@ -193,6 +192,34 @@ func _physics_process(delta):
     while trail.size() > 0 and trail[0][1] <= 0.0:
         trail.pop_front()
     update()
+
+func _update_aim(input):
+    var mp = get_viewport().get_mouse_position()
+    if mp.distance_to(last_mouse) > 3.0:
+        aim_mode = "mouse"
+        last_mouse = mp
+    var stick = Vector2(Input.get_joy_axis(0, 2), Input.get_joy_axis(0, 3))
+    if stick.length() > 0.35:
+        aim_mode = "pad"
+        facing = stick.normalized()
+    elif aim_mode == "mouse":
+        var to_mouse = get_global_mouse_position() - global_position
+        if to_mouse.length() > 4.0:
+            facing = to_mouse.normalized()
+    elif combat:
+        # Gamepad aim assist: face the nearest enemy, otherwise face where you walk
+        var best = null
+        var bd = 520.0
+        for e in get_tree().get_nodes_in_group("enemies"):
+            if is_instance_valid(e) and not e.dead and not e.spawning:
+                var d = e.global_position.distance_to(global_position)
+                if d < bd:
+                    bd = d
+                    best = e
+        if best != null:
+            facing = (best.global_position - global_position).normalized()
+        elif input.length() > 0.1:
+            facing = input.normalized()
 
 func _dash_shock():
     for e in get_tree().get_nodes_in_group("enemies"):
@@ -261,27 +288,50 @@ func take_damage(amount, from_pos):
     emit_signal("hp_changed", hp, max_hp)
 
 func _draw():
+    Art.shadow(self, Vector2(0, RADIUS), 18.0)
+    var flip = facing.x < 0.0
+    var moving = velocity.length() > 40.0
+    # Dash afterimages
     for t in trail:
-        var a = clamp(t[1] / 0.22, 0.0, 1.0) * 0.4
-        draw_circle(to_local(t[0]), RADIUS, Color(0.6, 0.85, 1.0, a))
+        var a = clamp(t[1] / 0.22, 0.0, 1.0) * 0.45
+        Art.draw(self, "knight_m_run_anim_f1", to_local(t[0]) + Vector2(0, RADIUS + 2), Art.SCALE, flip, Color(0.6, 0.85, 1.0, a))
+    # Sword swing glow (matches the real hit area)
     if attack_vis > 0.0:
-        var a = clamp(attack_vis / 0.15, 0.0, 1.0)
+        var a2 = clamp(attack_vis / 0.15, 0.0, 1.0)
         var ang = facing.angle()
-        draw_arc(Vector2.ZERO, attack_range * 0.85, ang - attack_arc / 2.0, ang + attack_arc / 2.0, 20, Color(1.0, 0.95, 0.7, a), 8.0)
-        draw_arc(Vector2.ZERO, attack_range * 0.65, ang - attack_arc / 2.0, ang + attack_arc / 2.0, 20, Color(1.0, 0.8, 0.4, a * 0.6), 3.0)
-    var side = facing.rotated(PI / 2.0)
-    var tail = PoolVector2Array([-facing * RADIUS * 2.1, side * RADIUS * 0.95, -side * RADIUS * 0.95])
-    draw_colored_polygon(tail, Color(0.18, 0.22, 0.42))
-    var body = Color(0.8, 0.92, 1.0)
+        draw_arc(Vector2.ZERO, attack_range * 0.85, ang - attack_arc / 2.0, ang + attack_arc / 2.0, 20, Color(1.0, 0.95, 0.7, a2 * 0.8), 7.0)
+        draw_arc(Vector2.ZERO, attack_range * 0.62, ang - attack_arc / 2.0, ang + attack_arc / 2.0, 20, Color(1.0, 0.8, 0.4, a2 * 0.5), 3.0)
+    # Body sprite
+    var base = "knight_m_run_anim" if moving else "knight_m_idle_anim"
+    var fname = Art.frame_name(base, clock, 11.0 if moving else 5.0)
+    var mod = Color(1, 1, 1)
     if not alive:
-        body = Color(0.35, 0.35, 0.4)
+        fname = "knight_m_hit_anim_f0"
+        mod = Color(0.5, 0.5, 0.55)
     elif invuln > 0.0 and int(invuln * 20.0) % 2 == 0:
-        body = Color(1.0, 0.45, 0.45)
-    draw_circle(Vector2.ZERO, RADIUS + 3.0, Color(0.5, 0.75, 1.0, 0.18))
-    draw_circle(Vector2.ZERO, RADIUS, body)
-    draw_circle(Vector2.ZERO, RADIUS - 4.0, Color(0.15, 0.2, 0.35))
-    draw_circle(facing * (RADIUS + 4.0), 6.0, Color(1.0, 0.85, 0.4, 0.35))
-    draw_circle(facing * (RADIUS + 4.0), 3.5, Color(1.0, 0.9, 0.5))
+        mod = Color(2.0, 0.7, 0.7)
+    if not Art.draw(self, fname, Vector2(0, RADIUS + 2), Art.SCALE, flip, mod):
+        draw_circle(Vector2.ZERO, RADIUS, Color(0.8, 0.92, 1.0))
+    # Sword in hand
+    if alive and Art.tex != null:
+        var sw = Art.frames.get("weapon_knight_sword")
+        if sw != null:
+            var sx = -1.0 if flip else 1.0
+            var hand = Vector2(sx * 16.0, -16.0)
+            var rot = sx * 0.55
+            if attack_vis > 0.0:
+                var p2 = 1.0 - clamp(attack_vis / 0.15, 0.0, 1.0)
+                var a3 = facing.angle() - attack_arc / 2.0 + attack_arc * p2
+                hand = Vector2(0, -12) + Vector2.RIGHT.rotated(a3) * 10.0
+                rot = a3 + PI / 2.0
+            draw_set_transform(hand, rot, Vector2.ONE)
+            var w = sw.size.x * Art.SCALE * 0.8
+            var h = sw.size.y * Art.SCALE * 0.8
+            draw_texture_rect_region(Art.tex, Rect2(-w / 2.0, -h, w, h), sw)
+            draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+    # Lantern glow (so you can see where you are aiming)
+    draw_circle(facing * (RADIUS + 10.0), 7.0, Color(1.0, 0.85, 0.4, 0.28))
+    draw_circle(facing * (RADIUS + 10.0), 3.5, Color(1.0, 0.92, 0.55))
     if combat and dash_cooldown_left > 0.0:
         var ratio = 1.0 - clamp(dash_cooldown_left / dash_cooldown, 0.0, 1.0)
-        draw_arc(Vector2.ZERO, RADIUS + 7.0, -PI / 2.0, -PI / 2.0 + TAU * ratio, 20, Color(0.5, 0.9, 1.0, 0.55), 2.0)
+        draw_arc(Vector2.ZERO, RADIUS + 9.0, -PI / 2.0, -PI / 2.0 + TAU * ratio, 20, Color(0.5, 0.9, 1.0, 0.55), 2.0)

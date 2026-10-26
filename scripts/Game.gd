@@ -15,6 +15,7 @@ const FORGE = [
 
 var data = {}
 var last_run = null
+var selected_line = "sunken"
 
 func default_data():
     return {
@@ -22,6 +23,8 @@ func default_data():
         "echoes": 0, "xp": 0, "level": 1, "best_room": 0,
         "forge": {"vitality": 0, "edge": 0, "agility": 0, "windsigil": 0, "fortune": 0},
         "warden": "",
+        "jarl": "",
+        "cleared": {},
         "warden_hist": {"restore": 0, "bind": 0, "release": 0},
         "flags": {}, "bonds": {"mara": 0}, "talked": {}
     }
@@ -63,6 +66,8 @@ func load_game():
         fresh["bonds"][k] = int(fresh["bonds"][k])
     for k in fresh["warden_hist"].keys():
         fresh["warden_hist"][k] = int(fresh["warden_hist"][k])
+    for k in fresh["cleared"].keys():
+        fresh["cleared"][k] = int(fresh["cleared"][k])
     data = fresh
     last_run = null
     return true
@@ -111,7 +116,14 @@ func run_started():
     data["runs"] += 1
     save()
 
-func finish_run(result, rooms, kills, echoes, xp):
+func line_open(id):
+    if id == "sunken":
+        return true
+    if id == "rime":
+        return int(data["wins"]) >= 1 or int(data["cleared"].get("sunken", 0)) >= 1
+    return false
+
+func finish_run(result, rooms, kills, echoes, xp, line = "sunken"):
     var levels = 0
     data["echoes"] += echoes
     data["xp"] += xp
@@ -124,6 +136,7 @@ func finish_run(result, rooms, kills, echoes, xp):
         data["deaths"] += 1
     elif result == "win":
         data["wins"] += 1
+        data["cleared"][line] = int(data["cleared"].get(line, 0)) + 1
     data["best_room"] = int(max(data["best_room"], rooms))
     last_run = {"result": result, "rooms": rooms, "kills": kills, "echoes": echoes, "xp": xp, "levels": levels, "level": data["level"]}
     save()

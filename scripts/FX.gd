@@ -42,10 +42,15 @@ func font(size, serif = false):
         return _fonts[key]
     var path = "res://assets/fonts/" + ("DejaVuSerif-Bold.ttf" if serif else "DejaVuSans.ttf")
     var f = null
-    var file = File.new()
-    if file.file_exists(path):
-        var d = DynamicFontData.new()
-        d.font_path = path
+    var d = null
+    if ResourceLoader.exists(path):
+        d = load(path)
+    if d == null:
+        var file = File.new()
+        if file.file_exists(path):
+            d = DynamicFontData.new()
+            d.font_path = path
+    if d != null:
         f = DynamicFont.new()
         f.font_data = d
         f.size = size

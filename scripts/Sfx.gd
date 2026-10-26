@@ -13,7 +13,7 @@ var current_music = ""
 func _ready():
     pause_mode = Node.PAUSE_MODE_PROCESS
     for kind in [["hit", 0.10], ["kill", 0.28], ["dash", 0.16], ["swing", 0.09], ["hurt", 0.30], ["pickup", 0.22], ["click", 0.06],
-                 ["door", 0.45], ["boss", 0.60], ["parry", 0.18], ["levelup", 0.50], ["shoot", 0.14]]:
+                 ["door", 0.45], ["boss", 0.60], ["parry", 0.18], ["levelup", 0.50], ["shoot", 0.14], ["slam", 0.40]]:
         sounds[kind[0]] = _synth(kind[0], kind[1])
     for i in range(8):
         var p = AudioStreamPlayer.new()
@@ -24,6 +24,7 @@ func _ready():
     add_child(music_player)
     music_streams["run"] = _drone([55.0, 82.5, 110.0, 165.0])
     music_streams["hub"] = _drone([65.5, 98.25, 131.0, 196.5])
+    music_streams["rime"] = _drone([73.5, 110.25, 147.0, 220.5])
 
 func play(name, vol = 0.0, pitch = 1.0):
     if not sounds.has(name):
@@ -87,6 +88,8 @@ func _synth(kind, dur):
             v = (sin(TAU * 1300.0 * t) + sin(TAU * 1950.0 * t)) * pow(1.0 - k, 3.0) * 0.3
         elif kind == "levelup":
             v = sin(TAU * notes[int(min(int(k * 4.0), 3))] * t) * (1.0 - k * 0.6) * 0.4
+        elif kind == "slam":
+            v = sin(TAU * (90.0 - 50.0 * k) * t) * pow(1.0 - k, 2.0) * 0.9 + nz * pow(1.0 - k, 4.0) * 0.4
         elif kind == "shoot":
             v = sin(TAU * (700.0 - 400.0 * k) * t) * pow(1.0 - k, 2.0) * 0.3
         var s = int(clamp(v, -1.0, 1.0) * 28000.0)

@@ -14,3 +14,11 @@ Second PC (HP Compaq 6200 Pro, i3-2130, 8GB, Intel HD, Win10) runs everything fi
 - Prototype 0.3 (Terminus Update): Title + save/continue, Hub with 4 NPCs (Oru, Mara, Sable, Bryn) + branching dialogue, Forge (5 permanent upgrades), Ledger, Keeper level/XP, 5-room runs with doors/rewards, elite room, Shrine bargains, boss + Reckoning, gift rarity + descriptions, crits, pause menu, procedural SFX/music, bundled DejaVu fonts.
 Scenes: Title, Hub, Run. Autoloads: Inputs, FX, Game (save/profile), Sfx.
 NEXT: user feedback on 0.3; then Line Two (Rime Road), more enemies/gifts, Dr. Reyes + Stationmaster, real art pass (sprites/tiles), real audio, controller support.
+
+- Prototype 0.4 (Real Art): CC0 DungeonTileset II sprites via scripts/Art.gd (atlas in assets/art, frame data in scripts/ArtFrames.gd), tile-based rooms (48px tiles, scale 3), Deco.gd for animated props, credits screen. Player/enemy/boss/NPC all use sprites. Verified with screenshots + headless regression tests (death, second wind, win, save/load).
+Art rules: only CC0 or clearly commercial-safe licenses; log every asset in assets/art/CREDITS.md.
+NEXT: Line Two (Rime Road) with new tiles/enemies, controller support, more Gifts, Dr. Reyes + Stationmaster, real SFX/music files (CC0), export presets.
+
+- Prototype 0.5 (Rime Road): data-driven Lines in Run.gd (LINES dict) + Game.line_open(); Line Two "The Rime Road" (rime theme, charger enemy, Frost Jarl boss with slam/charge/fan, snow, own music, reward_mult 1.5); gamepad support in Inputs.gd/Player.gd (aim assist); gate picks the Line; Ledger shows cleared lines + Jarl choice.
+To add a Line: add an entry in Run.gd LINES, a theme in Enemy.gd setup(), boss config in Boss.gd setup(), unlock rule in Game.line_open(), a gate card in Hub.gd _open_gate().
+NEXT: Line Three (Obsidian Road / Aztec), real CC0 sound files, dedicated Dr. Reyes + Stationmaster scenes, achievements, export presets for Windows, Steam page prep.

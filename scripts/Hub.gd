@@ -8,10 +8,12 @@ const DialogueScript = preload("res://scripts/Dialogue.gd")
 const DialogueUIScript = preload("res://scripts/DialogueUI.gd")
 const CardUIScript = preload("res://scripts/CardUI.gd")
 const PauseScript = preload("res://scripts/PauseMenu.gd")
+const DecoScript = preload("res://scripts/Deco.gd")
 
-const AREA = Rect2(0, 0, 1500, 900)
-const PROPS = [Rect2(250, 300, 200, 40), Rect2(1030, 250, 220, 50), Rect2(1080, 520, 130, 70)]
-const GATE_POS = Vector2(750, 130)
+const TILE = 48
+const AREA = Rect2(0, 0, 1536, 960)
+const PROPS = [Rect2(240, 336, 192, 48), Rect2(1056, 288, 240, 48), Rect2(1104, 576, 144, 72)]
+const GATE_POS = Vector2(768, 150)
 
 var player = null
 var npcs = []
@@ -26,6 +28,7 @@ var current_npc = ""
 var current_key = ""
 var nearest = null
 var clock = 0.0
+var deco = null
 
 func _ready():
     FX.reset()
@@ -33,15 +36,18 @@ func _ready():
     Sfx.music("hub")
     Game.save()
     var mod = CanvasModulate.new()
-    mod.color = Color(0.5, 0.52, 0.66)
+    mod.color = Color(0.6, 0.62, 0.78)
     add_child(mod)
     _build_walls()
     _build_lights()
+    _build_deco()
     _build_npcs()
     player = PlayerScript.new()
     player.combat = false
-    player.position = Vector2(750, 520)
+    player.position = Vector2(768, 560)
     add_child(player)
+    for n in npcs:
+        n.watch = player
     player.set_camera_limits(AREA)
     ui_layer = CanvasLayer.new()
     add_child(ui_layer)
@@ -78,8 +84,8 @@ func _update_hud():
 # ---------- world ----------
 
 func _build_walls():
-    _wall(Rect2(-64, -64, AREA.size.x + 128, 64))
-    _wall(Rect2(-64, 716, AREA.size.x + 128, 64))
+    _wall(Rect2(-64, -64, AREA.size.x + 128, 64 + 144))
+    _wall(Rect2(-64, 720, AREA.size.x + 128, 300))
     _wall(Rect2(-64, 0, 64, AREA.size.y))
     _wall(Rect2(AREA.size.x, 0, 64, AREA.size.y))
     for r in PROPS:
@@ -106,77 +112,109 @@ func _light(pos, color, scale, energy):
     add_child(l)
 
 func _build_lights():
-    _light(Vector2(400, 420), Color(1.0, 0.85, 0.6), 5.0, 0.6)
-    _light(Vector2(1100, 400), Color(1.0, 0.85, 0.6), 5.0, 0.6)
-    _light(GATE_POS + Vector2(0, 40), Color(0.4, 0.9, 1.0), 5.0, 0.8)
-    _light(Vector2(1145, 555), Color(1.0, 0.55, 0.2), 4.5, 0.9)
+    _light(Vector2(400, 470), Color(1.0, 0.85, 0.6), 6.0, 0.7)
+    _light(Vector2(1140, 470), Color(1.0, 0.85, 0.6), 6.0, 0.7)
+    _light(GATE_POS + Vector2(0, 50), Color(0.4, 0.9, 1.0), 6.0, 0.9)
+    _light(Vector2(1176, 610), Color(1.0, 0.55, 0.2), 5.0, 1.0)
+
+func _build_deco():
+    deco = DecoScript.new()
+    add_child(deco)
+    var items = []
+    for c in [11, 20]:
+        items.append({"name": "wall_fountain_top", "pos": Vector2(c * TILE, 0), "anchor": "topleft"})
+        items.append({"name": "wall_fountain_mid_blue_anim", "pos": Vector2(c * TILE, TILE), "anchor": "topleft", "fps": 5.0})
+        items.append({"name": "wall_fountain_basin_blue_anim", "pos": Vector2(c * TILE, 2 * TILE), "anchor": "topleft", "fps": 5.0})
+    # Molten forge glow
+    for x in [1104, 1152, 1200]:
+        items.append({"name": "wall_fountain_basin_red_anim", "pos": Vector2(x, 576), "anchor": "topleft", "fps": 6.0})
+    items.append({"name": "chest_full_open_anim_f0", "pos": Vector2(1290, 670), "anchor": "bottom"})
+    items.append({"name": "coin_anim", "pos": Vector2(1250, 690), "anchor": "bottom", "fps": 6.0})
+    items.append({"name": "coin_anim", "pos": Vector2(1266, 700), "anchor": "bottom", "fps": 5.0})
+    deco.items = items
 
 func _build_npcs():
-    var defs = [["oru", "Oru", Color(1.0, 0.8, 0.4), "flame", Vector2(690, 430)],
-        ["mara", "Mara Voss", Color(0.95, 0.55, 0.55), "person", Vector2(350, 390)],
-        ["sable", "Sable", Color(0.7, 0.82, 1.0), "person", Vector2(1140, 335)],
-        ["bryn", "Bryn", Color(1.0, 0.62, 0.3), "person", Vector2(1020, 560)]]
+    var defs = [["oru", "Oru", Color(1.0, 0.8, 0.4), "flame", "", Color(1, 1, 1), Vector2(700, 480)],
+        ["mara", "Mara Voss", Color(0.95, 0.55, 0.55), "person", "elf_f", Color(1, 1, 1), Vector2(336, 500)],
+        ["sable", "Sable", Color(0.7, 0.82, 1.0), "person", "wizard_f", Color(0.75, 0.88, 1.15, 0.82), Vector2(1176, 425)],
+        ["bryn", "Bryn", Color(1.0, 0.62, 0.3), "person", "orc_warrior", Color(1, 1, 1), Vector2(1060, 625)]]
     for d in defs:
         var n = NPCScript.new()
         n.npc_id = d[0]
         n.display_name = d[1]
         n.body_color = d[2]
         n.kind = d[3]
-        n.position = d[4]
+        n.sprite = d[4]
+        n.tint = d[5]
+        n.position = d[6]
         add_child(n)
         npcs.append(n)
 
 func _draw():
-    # Platform floor
-    for ty in range(9):
-        for tx in range(15):
-            var shade = 0.0 if (tx + ty) % 2 == 0 else 0.03
-            draw_rect(Rect2(tx * 100, ty * 100, 100, 100), Color(0.4 + shade, 0.4 + shade, 0.46 + shade))
     var rng = RandomNumberGenerator.new()
     rng.seed = 99
-    for i in range(30):
-        var a = Vector2(rng.randf_range(20, 1480), rng.randf_range(140, 700))
-        draw_line(a, a + Vector2(rng.randf_range(-40, 40), rng.randf_range(-40, 40)), Color(0.2, 0.2, 0.26, 0.6), 1.5)
-    # Back wall
-    draw_rect(Rect2(0, 0, 1500, 130), Color(0.16, 0.15, 0.22))
-    draw_rect(Rect2(0, 126, 1500, 5), Color(0.6, 0.48, 0.2))
-    for i in range(1, 15):
-        draw_rect(Rect2(i * 100 - 4, 0, 8, 126), Color(0.12, 0.11, 0.17))
+    var cols = 32
+    draw_rect(AREA, Color(0.1, 0.09, 0.13))
+    for r in range(20):
+        for c in range(cols):
+            var rect = Rect2(c * TILE, r * TILE, TILE, TILE)
+            if r == 0:
+                Art.tile(self, "wall_top_mid", rect)
+            elif r == 1 or r == 2:
+                Art.tile(self, "wall_mid", rect, Color(0.95, 0.95, 1.0))
+            elif r <= 14:
+                var roll = rng.randf()
+                var name = "floor_1"
+                if roll > 0.97:
+                    name = "floor_6"
+                elif roll > 0.93:
+                    name = "floor_4"
+                elif roll > 0.84:
+                    name = "floor_5"
+                elif roll > 0.74:
+                    name = "floor_3"
+                elif roll > 0.62:
+                    name = "floor_2"
+                Art.tile(self, name, rect)
+    for c in [3, 7, 24, 28]:
+        Art.tile(self, "wall_banner_blue" if c < 12 else "wall_banner_red", Rect2(c * TILE, TILE, TILE, TILE))
     # Gate to Line One
-    draw_rect(Rect2(GATE_POS.x - 70, 16, 140, 112), Color(0.04, 0.05, 0.1))
-    draw_rect(Rect2(GATE_POS.x - 60, 28, 120, 100), Color(0.1, 0.3, 0.35, 0.8))
-    draw_rect(Rect2(GATE_POS.x - 70, 16, 140, 112), Color(0.85, 0.68, 0.3), false, 4.0)
-    for i in range(3):
-        var ax = GATE_POS.x - 30 + i * 30
-        draw_arc(Vector2(ax, 52), 7.0, 0.0, TAU, 12, Color(0.9, 0.75, 0.35, 0.8), 2.0)
-        draw_line(Vector2(ax, 59), Vector2(ax, 84), Color(0.9, 0.75, 0.35, 0.8), 2.0)
-        draw_line(Vector2(ax - 8, 66), Vector2(ax + 8, 66), Color(0.9, 0.75, 0.35, 0.8), 2.0)
+    draw_rect(Rect2(GATE_POS.x - 120, 28, 240, 120), Color(0.03, 0.05, 0.09))
+    Art.draw(self, "doors_all", Vector2(GATE_POS.x, 144), 3.5, false, Color(1, 1, 1), "bottom")
+    draw_rect(Rect2(GATE_POS.x - 112, 36, 224, 108), Color(0.2, 0.7, 0.8, 0.12))
     # Platform edge and tracks
-    draw_rect(Rect2(0, 700, 1500, 16), Color(0.85, 0.7, 0.15))
-    draw_rect(Rect2(0, 716, 1500, 184), Color(0.08, 0.08, 0.11))
-    for x in range(0, 1500, 60):
-        draw_rect(Rect2(x, 760, 36, 8), Color(0.2, 0.15, 0.12))
-        draw_rect(Rect2(x, 830, 36, 8), Color(0.2, 0.15, 0.12))
-    draw_line(Vector2(0, 756), Vector2(1500, 756), Color(0.4, 0.4, 0.45), 3.0)
-    draw_line(Vector2(0, 836), Vector2(1500, 836), Color(0.4, 0.4, 0.45), 3.0)
-    # Ghost carriage on the tracks
-    draw_rect(Rect2(260, 740, 820, 100), Color(0.12, 0.16, 0.24, 0.85))
+    draw_rect(Rect2(0, 720, AREA.size.x, 14), Color(0.9, 0.75, 0.15))
+    draw_rect(Rect2(0, 734, AREA.size.x, AREA.size.y - 734), Color(0.06, 0.06, 0.09))
+    for x in range(0, 1536, 64):
+        draw_rect(Rect2(x, 800, 40, 8), Color(0.22, 0.16, 0.12))
+        draw_rect(Rect2(x, 880, 40, 8), Color(0.22, 0.16, 0.12))
+    draw_line(Vector2(0, 796), Vector2(AREA.size.x, 796), Color(0.45, 0.45, 0.5), 3.0)
+    draw_line(Vector2(0, 876), Vector2(AREA.size.x, 876), Color(0.45, 0.45, 0.5), 3.0)
+    # Ghost carriage waiting on the tracks
+    draw_rect(Rect2(260, 770, 860, 110), Color(0.12, 0.16, 0.24, 0.9))
     for i in range(8):
-        draw_rect(Rect2(290 + i * 100, 756, 56, 40), Color(0.5, 0.75, 0.9, 0.18))
-    draw_rect(Rect2(260, 740, 820, 100), Color(0.3, 0.4, 0.55, 0.6), false, 2.0)
-    # Props: bench, Sable's desk, Bryn's forge
+        draw_rect(Rect2(292 + i * 104, 788, 60, 44), Color(0.5, 0.78, 0.92, 0.2))
+    draw_rect(Rect2(260, 770, 860, 110), Color(0.3, 0.42, 0.58, 0.7), false, 2.0)
+    # Bench, Sable's desk, Bryn's forge
     var bench = PROPS[0]
-    draw_rect(bench, Color(0.3, 0.2, 0.14))
-    draw_rect(bench, Color(0.55, 0.4, 0.22), false, 2.0)
+    draw_rect(Rect2(bench.position + Vector2(6, 10), bench.size), Color(0, 0, 0, 0.3))
+    draw_rect(bench, Color(0.32, 0.2, 0.13))
+    draw_rect(Rect2(bench.position.x, bench.position.y, bench.size.x, 12), Color(0.48, 0.32, 0.2))
+    draw_rect(bench, Color(0.6, 0.42, 0.24), false, 2.0)
     var desk = PROPS[1]
-    draw_rect(desk, Color(0.2, 0.2, 0.3))
-    draw_rect(desk, Color(0.6, 0.7, 0.9), false, 2.0)
+    draw_rect(Rect2(desk.position + Vector2(6, 10), desk.size), Color(0, 0, 0, 0.3))
+    draw_rect(desk, Color(0.2, 0.2, 0.32))
+    draw_rect(desk, Color(0.6, 0.7, 0.92), false, 2.0)
     for i in range(5):
-        draw_rect(Rect2(desk.position.x + 12 + i * 40, desk.position.y + 8, 28, 10), Color(0.8, 0.8, 0.9, 0.7))
+        draw_rect(Rect2(desk.position.x + 14 + i * 40, desk.position.y + 8, 28, 10), Color(0.85, 0.85, 0.95, 0.75))
+    Art.draw(self, "flask_big_blue", Vector2(desk.position.x + 190, desk.position.y + 18), 2.5, false, Color(1, 1, 1), "bottom")
+    Art.draw(self, "flask_big_green", Vector2(desk.position.x + 215, desk.position.y + 20), 2.5, false, Color(1, 1, 1), "bottom")
     var forge = PROPS[2]
-    draw_rect(forge, Color(0.18, 0.13, 0.12))
-    draw_rect(Rect2(forge.position.x + 20, forge.position.y + 10, 90, 20), Color(1.0, 0.45, 0.1, 0.8))
-    draw_rect(forge, Color(0.8, 0.45, 0.2), false, 2.0)
+    draw_rect(Rect2(forge.position + Vector2(6, 10), forge.size), Color(0, 0, 0, 0.35))
+    draw_rect(forge, Color(0.2, 0.15, 0.14))
+    draw_rect(forge, Color(0.85, 0.5, 0.22), false, 2.0)
+    Art.draw(self, "weapon_axe", Vector2(1096, 582), 2.5, false, Color(1, 1, 1), "bottom")
+    Art.draw(self, "weapon_hammer", Vector2(1256, 584), 2.5, false, Color(1, 1, 1), "bottom")
 
 # ---------- interaction ----------
 
@@ -204,7 +242,7 @@ func _process(delta):
         at_gate = true
         nearest = null
     if at_gate:
-        prompt.text = "[E]  Board Line One: The Sunken Hall"
+        prompt.text = "[E]  Board a Line"
     elif nearest != null:
         prompt.text = "[E]  Talk to " + nearest.display_name
     else:
@@ -247,10 +285,16 @@ func _close_card():
 
 func _on_card_picked(i):
     if card_mode == "gate":
+        if i == 2:
+            _close_card()
+            return
+        var line = "sunken" if i == 0 else "rime"
+        if not Game.line_open(line):
+            return
         _close_card()
-        if i == 0:
-            Sfx.play("door")
-            Game.goto("res://scenes/Run.tscn")
+        Game.selected_line = line
+        Sfx.play("door")
+        Game.goto("res://scenes/Run.tscn")
     elif card_mode == "shop":
         _buy(i)
     else:
@@ -258,11 +302,16 @@ func _on_card_picked(i):
 
 func _open_gate():
     Sfx.play("click")
+    var rime_open = Game.line_open("rime")
     var opts = [
-        {"name": "Descend", "tag": "Line One: The Sunken Hall", "tag_color": Color(0.5, 0.9, 1.0), "border": Color(0.4, 0.8, 0.9),
-         "desc": "Five rooms of the drowned temple, ending in the Jackal Warden.\nPick a path through the doors, collect Gifts, and make your choices.\nDying is not the end. You keep your Echoes and XP."},
+        {"name": "Line One", "tag": "The Sunken Hall", "tag_color": Color(0.5, 0.9, 1.0), "border": Color(0.4, 0.8, 0.9),
+         "desc": "Five rooms of a drowned temple, ending with the Jackal Warden.\nChoose doors, collect Gifts, make your choices. You keep your Echoes and XP even if you die.",
+         "foot": "Cleared %d time(s)" % int(Game.data["cleared"].get("sunken", 0))},
+        {"name": "Line Two", "tag": "The Rime Road", "tag_color": Color(0.7, 0.9, 1.0), "border": Color(0.6, 0.85, 1.0),
+         "desc": "A frozen road through the halls of the Norse dead.\nTougher enemies, charging frost wolves, and the Frost Jarl.\nBetter rewards." if rime_open else "Locked.\nDefeat the Jackal Warden on Line One to open this line.",
+         "foot": ("Cleared %d time(s)" % int(Game.data["cleared"].get("rime", 0))) if rime_open else "LOCKED", "disabled": not rime_open},
         {"name": "Stay", "tag": "Terminus Station", "desc": "Talk to the others, visit the Forge, or check the Ledger first."}]
-    _open_card("gate", "BOARD THE LINE", "Oru: \"Ready, Keeper?\"", opts, true)
+    _open_card("gate", "BOARD A LINE", "Oru: \"Where to, Keeper?\"", opts, true)
 
 func _show_summary():
     var r = Game.last_run
@@ -276,6 +325,15 @@ func _show_summary():
     var opts = [{"name": "Run summary", "tag": "Saved", "tag_color": Color(0.5, 1, 0.6), "desc": desc, "border": Color(0.5, 0.9, 1.0)}]
     _open_card("summary", title, sub, opts)
 
+func _choice_name(c):
+    if c == "restore":
+        return "Restored"
+    if c == "bind":
+        return "Bound"
+    if c == "release":
+        return "Released"
+    return "Undecided"
+
 func _open_ledger():
     var d = Game.data
     var wn = "Undecided"
@@ -285,8 +343,8 @@ func _open_ledger():
         wn = "Bound"
     elif d["warden"] == "release":
         wn = "Released"
-    var desc = "Keeper Level %d    (XP %d / %d)\nRuns: %d     Deaths: %d     Victories: %d\nTotal kills: %d     Deepest room: %d / 5\n\nThe Jackal Warden: %s\nBond with Mara Voss: %d\nSecond Wind (Jonah's lighter): %s" % [
-        d["level"], d["xp"], Game.xp_to_next(), d["runs"], d["deaths"], d["wins"], d["kills_total"], d["best_room"], wn, Game.bond("mara"),
+    var desc = "Keeper Level %d    (XP %d / %d)\nRuns: %d     Deaths: %d     Victories: %d\nTotal kills: %d     Deepest room: %d / 5\n\nThe Jackal Warden: %s     The Frost Jarl: %s\nLines cleared: Sunken Hall x%d, Rime Road x%d\nBond with Mara Voss: %d\nSecond Wind (Jonah's lighter): %s" % [
+        d["level"], d["xp"], Game.xp_to_next(), d["runs"], d["deaths"], d["wins"], d["kills_total"], d["best_room"], wn, _choice_name(d["jarl"]), int(d["cleared"].get("sunken", 0)), int(d["cleared"].get("rime", 0)), Game.bond("mara"),
         "Yes" if Game.has_flag("second_wind") else "Not yet"]
     var opts = [{"name": "The Pantheon Ledger", "tag": "Sable's record of you", "tag_color": Color(0.7, 0.82, 1.0), "desc": desc, "border": Color(0.7, 0.82, 1.0)}]
     _open_card("ledger", "THE LEDGER", "Every choice is written down.", opts, true)
@@ -311,6 +369,8 @@ func _open_shop():
     _open_card("shop", "BRYN'S FORGE", "Permanent upgrades. They stay with you after death.", _forge_options(), true, "Echoes: %d" % Game.data["echoes"])
 
 func _buy(i):
+    if card == null or card_mode != "shop" or i < 0 or i >= Game.FORGE.size():
+        return
     var f = Game.FORGE[i]
     var lv = Game.forge_level(f["id"])
     if lv >= f["max"]:

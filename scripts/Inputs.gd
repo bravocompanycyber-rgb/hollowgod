@@ -19,6 +19,24 @@ func _ready():
     _add_keys("pick5", [KEY_5])
     _add_keys("fullscreen", [KEY_F11])
     _add_mouse("attack", BUTTON_LEFT)
+    # Gamepad (Xbox-style layout)
+    _add_axis("move_left", 0, -1.0)
+    _add_axis("move_right", 0, 1.0)
+    _add_axis("move_up", 1, -1.0)
+    _add_axis("move_down", 1, 1.0)
+    for a in ["move_left", "move_right", "move_up", "move_down"]:
+        InputMap.action_set_deadzone(a, 0.3)
+    _add_button("dash", 0)
+    _add_button("dash", 4)
+    _add_button("attack", 2)
+    _add_button("attack", 5)
+    _add_button("interact", 0)
+    _add_button("cancel", 1)
+    _add_button("pause", 11)
+    _add_button("pick1", 14)
+    _add_button("pick2", 12)
+    _add_button("pick3", 15)
+    _add_button("pick4", 13)
 
 func _add_action(action):
     if not InputMap.has_action(action):
@@ -34,5 +52,18 @@ func _add_keys(action, keys):
 func _add_mouse(action, button):
     _add_action(action)
     var e = InputEventMouseButton.new()
+    e.button_index = button
+    InputMap.action_add_event(action, e)
+
+func _add_axis(action, axis, value):
+    _add_action(action)
+    var e = InputEventJoypadMotion.new()
+    e.axis = axis
+    e.axis_value = value
+    InputMap.action_add_event(action, e)
+
+func _add_button(action, button):
+    _add_action(action)
+    var e = InputEventJoypadButton.new()
     e.button_index = button
     InputMap.action_add_event(action, e)

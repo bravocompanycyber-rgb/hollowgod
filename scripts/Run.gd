@@ -7,25 +7,44 @@ const EnemyScript = preload("res://scripts/Enemy.gd")
 const BossScript = preload("res://scripts/Boss.gd")
 const GiftsScript = preload("res://scripts/Gifts.gd")
 const DoorScript = preload("res://scripts/Door.gd")
+const DecoScript = preload("res://scripts/Deco.gd")
 const CardUIScript = preload("res://scripts/CardUI.gd")
 const PauseScript = preload("res://scripts/PauseMenu.gd")
 
-const ARENA = Rect2(0, 0, 1600, 900)
+const TILE = 48
+const COLS = 34
+const ROWS = 20
+const ARENA = Rect2(0, 0, 1632, 960)
+const PLAY = Rect2(48, 96, 1536, 816)
 const ROOM_PLAN = ["combat", "combat", "elite", "shrine", "boss"]
-const ROOM_NAMES = ["Flooded Antechamber", "Hall of Reeds", "Court of the Weighed", "Shrine of Scales", "The Warden's Hall"]
-const ROOM_ENEMIES = [
-    [["husk", 5]],
-    [["husk", 5], ["wisp", 2]],
-    [["brute", 2], ["husk", 4], ["wisp", 2]],
-    [],
-    [["warden", 1]]
-]
+# Line data. Colors are [r, g, b]. To add a new Line, add an entry here and open it in Game.line_open().
+const LINES = {
+    "sunken": {
+        "name": "The Sunken Hall", "theme": "sunken", "boss": "warden", "boss_name": "THE JACKAL WARDEN",
+        "rooms": ["Flooded Antechamber", "Hall of Reeds", "Court of the Weighed", "Shrine of Scales", "The Warden's Hall"],
+        "enemies": [[["husk", 5]], [["husk", 5], ["wisp", 2]], [["brute", 2], ["husk", 4], ["wisp", 2]], [], [["warden", 1]]],
+        "hp_mult": 1.0, "reward_mult": 1.0, "music": "run", "snow": false,
+        "floor": [1.0, 1.0, 1.0], "ambient": [0.62, 0.65, 0.82], "banner": "wall_banner_red", "rune": [0.95, 0.75, 0.3],
+        "shrine_title": "THE SHRINE OF SCALES", "shrine": ["Scale of Greed", "Scale of Blood", "Scale of Mercy"],
+        "reck_key": "warden", "reck_title": "THE JACKAL WARDEN KNEELS", "reck_line": "Oru: \"Its scales are broken. Choose, Keeper.\""
+    },
+    "rime": {
+        "name": "The Rime Road", "theme": "rime", "boss": "jarl", "boss_name": "THE FROST JARL",
+        "rooms": ["Frozen Gate", "Hall of Howling Winds", "Court of the Frost Wolves", "Shrine of the Norns", "The Jarl's Longhall"],
+        "enemies": [[["husk", 6], ["charger", 1]], [["husk", 5], ["wisp", 3], ["charger", 2]], [["brute", 3], ["wisp", 2], ["charger", 2], ["husk", 3]], [], [["jarl", 1]]],
+        "hp_mult": 1.35, "reward_mult": 1.5, "music": "rime", "snow": true,
+        "floor": [0.82, 0.94, 1.25], "ambient": [0.6, 0.7, 0.95], "banner": "wall_banner_blue", "rune": [0.6, 0.85, 1.0],
+        "shrine_title": "THE SHRINE OF THE NORNS", "shrine": ["Thread of Greed", "Thread of Blood", "Thread of Mercy"],
+        "reck_key": "jarl", "reck_title": "THE FROST JARL KNEELS", "reck_line": "Oru: \"Even the cold must end somewhere. Choose, Keeper.\""
+    }
+}
+# Layout pieces: [kind, column, row] in tiles. A "column" is 1x3 tiles tall, a "crate" is 1x1.
 const LAYOUTS = [
-    [Rect2(380, 250, 80, 80), Rect2(1140, 250, 80, 80), Rect2(380, 570, 80, 80), Rect2(1140, 570, 80, 80)],
-    [Rect2(760, 380, 80, 140), Rect2(360, 300, 80, 80), Rect2(1160, 300, 80, 80)],
-    [Rect2(300, 250, 70, 70), Rect2(765, 250, 70, 70), Rect2(1230, 250, 70, 70), Rect2(300, 560, 70, 70), Rect2(765, 560, 70, 70), Rect2(1230, 560, 70, 70)],
-    [Rect2(500, 450, 60, 60), Rect2(1040, 450, 60, 60)],
-    [Rect2(300, 350, 70, 70), Rect2(1230, 350, 70, 70)]
+    [["column", 7, 6], ["column", 26, 6], ["column", 7, 12], ["column", 26, 12]],
+    [["column", 16, 8], ["crate", 8, 6], ["crate", 9, 6], ["crate", 24, 13], ["crate", 25, 13], ["crate", 8, 14], ["crate", 25, 5]],
+    [["crate", 10, 9], ["crate", 11, 9], ["crate", 22, 9], ["crate", 23, 9], ["crate", 16, 6], ["crate", 17, 13], ["crate", 6, 14], ["crate", 27, 5]],
+    [["column", 10, 9], ["column", 23, 9]],
+    [["column", 6, 8], ["column", 27, 8], ["crate", 14, 14], ["crate", 19, 5]]
 ]
 const REWARD_NAMES = {"gift": "Gift", "echoes": "Echoes", "heal": "Mending"}
 const DEATH_LINES = [
@@ -35,7 +54,11 @@ const DEATH_LINES = [
     "Oru: \"Every death teaches. Most of it is pain.\""
 ]
 
+var L = {}
+var dust = null
 var pillars = []
+var pillar_kinds = []
+var deco = null
 var player = null
 var wall_root = null
 var doors = []
@@ -75,16 +98,19 @@ func _ready():
     randomize()
     FX.reset()
     FX.world = self
-    Sfx.music("run")
+    L = LINES.get(Game.selected_line, LINES["sunken"])
+    Sfx.music(L["music"])
     Game.run_started()
     var mod = CanvasModulate.new()
-    mod.color = Color(0.5, 0.55, 0.72)
+    mod.color = Color(L["ambient"][0], L["ambient"][1], L["ambient"][2])
     add_child(mod)
     wall_root = Node2D.new()
     add_child(wall_root)
     _build_dust()
+    deco = DecoScript.new()
+    add_child(deco)
     player = PlayerScript.new()
-    player.position = Vector2(800, 780)
+    player.position = Vector2(816, 860)
     add_child(player)
     player.setup_from_profile()
     player.set_camera_limits(ARENA)
@@ -104,13 +130,18 @@ func _enter_room(i, reward):
     room_index = i
     room_type = ROOM_PLAN[i]
     room_reward = reward
-    pillars = LAYOUTS[i]
+    pillars = []
+    pillar_kinds = []
+    for piece in LAYOUTS[i]:
+        var h = TILE * 3 if piece[0] == "column" else TILE
+        pillars.append(Rect2(piece[1] * TILE, piece[2] * TILE, TILE, h))
+        pillar_kinds.append(piece[0])
     for c in wall_root.get_children():
         c.queue_free()
-    _wall(Rect2(-64, -64, ARENA.size.x + 128, 64))
-    _wall(Rect2(-64, ARENA.size.y, ARENA.size.x + 128, 64))
-    _wall(Rect2(-64, 0, 64, ARENA.size.y))
-    _wall(Rect2(ARENA.size.x, 0, 64, ARENA.size.y))
+    _wall(Rect2(-64, -64, ARENA.size.x + 128, 64 + 96))
+    _wall(Rect2(-64, 912, ARENA.size.x + 128, 112))
+    _wall(Rect2(-64, 0, 64 + 48, ARENA.size.y))
+    _wall(Rect2(ARENA.size.x - 48, 0, 112, ARENA.size.y))
     for r in pillars:
         _wall(r)
     for d in doors:
@@ -120,17 +151,18 @@ func _enter_room(i, reward):
     for e in get_tree().get_nodes_in_group("enemies"):
         e.queue_free()
     alive_enemies = 0
-    player.global_position = Vector2(800, 780)
+    player.global_position = Vector2(816, 860)
     player.velocity = Vector2.ZERO
+    _set_deco()
     player.can_attack = false
     state = "intro"
     wave_timer = 1.0
     update()
     _update_labels()
     if room_type == "boss":
-        _show_message(ROOM_NAMES[i] + "\nTHE JACKAL WARDEN", 2.2)
+        _show_message(L["rooms"][i] + "\n" + L["boss_name"], 2.2)
     else:
-        _show_message("Room %d / %d\n%s" % [i + 1, ROOM_PLAN.size(), ROOM_NAMES[i]], 2.0)
+        _show_message("%s\nRoom %d / %d: %s" % [L["name"], i + 1, ROOM_PLAN.size(), L["rooms"][i]], 2.0)
     fade.color = Color(0, 0, 0, 1)
     var tw = Tween.new()
     fade.add_child(tw)
@@ -162,53 +194,92 @@ func _build_dust():
     d.spread = 180.0
     d.scale_amount = 2.5
     d.color = Color(1.0, 0.9, 0.6, 0.5)
+    if L["snow"]:
+        d.amount = 90
+        d.gravity = Vector2(-10, 40)
+        d.initial_velocity = 12.0
+        d.scale_amount = 3.0
+        d.color = Color(0.9, 0.97, 1.0, 0.7)
+    dust = d
     add_child(d)
 
-func _ankh(pos, size, col):
-    draw_arc(pos + Vector2(0, -size * 0.95), size * 0.45, 0.0, TAU, 16, col, 2.0)
-    draw_line(pos + Vector2(0, -size * 0.5), pos + Vector2(0, size), col, 2.0)
-    draw_line(pos + Vector2(-size * 0.6, 0), pos + Vector2(size * 0.6, 0), col, 2.0)
+func _set_deco():
+    var blue = room_type != "boss" or L["boss"] == "jarl"
+    var mid = "wall_fountain_mid_blue_anim" if blue else "wall_fountain_mid_red_anim"
+    var basin = "wall_fountain_basin_blue_anim" if blue else "wall_fountain_basin_red_anim"
+    var items = []
+    for c in [12, 21]:
+        items.append({"name": "wall_fountain_top", "pos": Vector2(c * TILE, 0), "anchor": "topleft"})
+        items.append({"name": mid, "pos": Vector2(c * TILE, TILE), "anchor": "topleft", "fps": 5.0})
+        items.append({"name": basin, "pos": Vector2(c * TILE, 2 * TILE), "anchor": "topleft", "fps": 5.0})
+    deco.items = items
 
 func _draw():
-    var tint = Color(0.0, 0.0, 0.0)
+    var base = Color(L["floor"][0], L["floor"][1], L["floor"][2])
+    var tint = base
+    var banner = L["banner"]
     if room_type == "elite":
-        tint = Color(0.05, -0.02, 0.06)
+        tint = Color(base.r * 1.0, base.g * 0.88, base.b * 1.08)
+        banner = "wall_banner_green"
     elif room_type == "shrine":
-        tint = Color(0.04, 0.0, 0.07)
+        tint = Color(base.r * 0.9, base.g * 0.96, base.b * 1.1)
+        banner = "wall_banner_blue"
     elif room_type == "boss":
-        tint = Color(0.07, -0.01, -0.03)
-    for ty in range(9):
-        for tx in range(16):
-            var shade = 0.0 if (tx + ty) % 2 == 0 else 0.035
-            draw_rect(Rect2(tx * 100, ty * 100, 100, 100), Color(0.43 + shade + tint.r, 0.41 + shade + tint.g, 0.5 + shade + tint.b))
+        tint = Color(base.r * 1.1, base.g * 0.86, base.b * 0.8) if L["boss"] == "warden" else Color(base.r * 0.85, base.g * 0.95, base.b * 1.15)
+        banner = "wall_banner_yellow" if L["boss"] == "warden" else "wall_banner_blue"
     var rng = RandomNumberGenerator.new()
-    rng.seed = 4242 + room_index
-    for i in range(40):
-        var a = Vector2(rng.randf_range(20, ARENA.size.x - 20), rng.randf_range(20, ARENA.size.y - 20))
-        var b = a + Vector2(rng.randf_range(-50, 50), rng.randf_range(-50, 50))
-        draw_line(a, b, Color(0.2, 0.19, 0.25, 0.6), 1.5)
-    for x in range(0, 1601, 100):
-        draw_line(Vector2(x, 0), Vector2(x, ARENA.size.y), Color(0.25, 0.24, 0.32, 0.7), 1.0)
-    for y in range(0, 901, 100):
-        draw_line(Vector2(0, y), Vector2(ARENA.size.x, y), Color(0.25, 0.24, 0.32, 0.7), 1.0)
-    var c = ARENA.size / 2.0
-    var gold = Color(0.9, 0.7, 0.25, 0.55)
-    draw_arc(c, 200.0, 0.0, TAU, 64, gold, 3.0)
-    draw_arc(c, 150.0, 0.0, TAU, 64, Color(0.9, 0.7, 0.25, 0.35), 2.0)
-    draw_arc(c, 90.0, 0.0, TAU, 48, gold, 3.0)
+    rng.seed = 777 + room_index * 13
+    # Dark stone behind the walls
+    draw_rect(ARENA, Color(0.1, 0.09, 0.13))
+    for r in range(ROWS):
+        for c in range(COLS):
+            var rect = Rect2(c * TILE, r * TILE, TILE, TILE)
+            if r == 0:
+                Art.tile(self, "wall_top_mid", rect, tint)
+            elif r == 1:
+                Art.tile(self, "wall_mid", rect, tint)
+            elif r == ROWS - 1 or c == 0 or c == COLS - 1:
+                pass
+            else:
+                var roll = rng.randf()
+                var name = "floor_1"
+                if roll > 0.97:
+                    name = "floor_6"
+                elif roll > 0.93:
+                    name = "floor_4"
+                elif roll > 0.84:
+                    name = "floor_5"
+                elif roll > 0.74:
+                    name = "floor_3"
+                elif roll > 0.62:
+                    name = "floor_2"
+                Art.tile(self, name, rect, tint)
+    # Soft edge where the floor meets the border walls
+    draw_rect(Rect2(PLAY.position.x, PLAY.end.y - 6, PLAY.size.x, 6), Color(0, 0, 0, 0.35))
+    draw_rect(Rect2(PLAY.position.x, PLAY.position.y, 6, PLAY.size.y), Color(0, 0, 0, 0.35))
+    draw_rect(Rect2(PLAY.end.x - 6, PLAY.position.y, 6, PLAY.size.y), Color(0, 0, 0, 0.35))
+    for c in [4, 8, 25, 29]:
+        Art.tile(self, banner, Rect2(c * TILE, TILE, TILE, TILE))
+    # Faint rune circle in the middle of the floor
+    var cen = Vector2(816, 520)
+    var rc = L["rune"]
+    var gold = Color(rc[0], rc[1], rc[2], 0.32)
+    draw_arc(cen, 210.0, 0.0, TAU, 64, gold, 3.0)
+    draw_arc(cen, 150.0, 0.0, TAU, 64, Color(rc[0], rc[1], rc[2], 0.2), 2.0)
+    draw_arc(cen, 90.0, 0.0, TAU, 48, gold, 3.0)
     for i in range(8):
         var ang = TAU * i / 8.0
-        draw_line(c + Vector2.RIGHT.rotated(ang) * 90.0, c + Vector2.RIGHT.rotated(ang) * 200.0, Color(0.9, 0.7, 0.25, 0.3), 2.0)
-    for i in range(1, 10):
-        _ankh(Vector2(i * 160, 24), 12.0, Color(0.85, 0.68, 0.3, 0.55))
-        _ankh(Vector2(i * 160, ARENA.size.y - 30), 12.0, Color(0.85, 0.68, 0.3, 0.55))
-    for r in pillars:
-        draw_rect(Rect2(r.position + Vector2(6, 6), r.size), Color(0, 0, 0, 0.35))
-        draw_rect(r, Color(0.2, 0.19, 0.27))
-        draw_rect(r.grow(-8), Color(0.28, 0.26, 0.36))
-        draw_rect(r, Color(0.8, 0.62, 0.25), false, 2.0)
-        _ankh(r.position + r.size / 2.0 + Vector2(0, 2), 10.0, Color(0.85, 0.68, 0.3, 0.8))
-    draw_rect(ARENA, Color(0.8, 0.62, 0.2), false, 6.0)
+        draw_line(cen + Vector2.RIGHT.rotated(ang) * 90.0, cen + Vector2.RIGHT.rotated(ang) * 210.0, Color(rc[0], rc[1], rc[2], 0.18), 2.0)
+    # Columns and crates
+    for k in range(pillars.size()):
+        var r = pillars[k]
+        draw_rect(Rect2(r.position + Vector2(8, r.size.y - 14), Vector2(r.size.x, 22)), Color(0, 0, 0, 0.3))
+        if pillar_kinds[k] == "column":
+            Art.tile(self, "column_top", Rect2(r.position.x, r.position.y, TILE, TILE), tint)
+            Art.tile(self, "column_mid", Rect2(r.position.x, r.position.y + TILE, TILE, TILE), tint)
+            Art.tile(self, "column_base", Rect2(r.position.x, r.position.y + 2 * TILE, TILE, TILE), tint)
+        else:
+            Art.tile(self, "crate", Rect2(r.position.x, r.position.y - 18, TILE, 66), tint)
 
 # ---------- hud ----------
 
@@ -322,28 +393,31 @@ func _start_room():
         _open_shrine()
         return
     state = "fighting"
-    var scale = 1.0 + 0.08 * room_index
-    for group in ROOM_ENEMIES[room_index]:
+    var scale = (1.0 + 0.08 * room_index) * L["hp_mult"]
+    for group in L["enemies"][room_index]:
         for i in range(group[1]):
             _spawn_enemy(group[0], scale)
 
 func _spawn_enemy(kind, scale = 1.0):
     var e = null
-    if kind == "warden":
+    if kind == "warden" or kind == "jarl":
         e = BossScript.new()
-        e.position = Vector2(ARENA.size.x / 2.0, 230)
+        e.boss_kind = kind
+        e.position = Vector2(816, 290)
         e.connect("hp_changed", self, "_on_boss_hp")
         e.connect("summon_request", self, "_on_summon")
         e.connect("died", self, "_on_boss_died")
         boss_bg.visible = true
         boss_fill.visible = true
         boss_label.visible = true
+        boss_label.text = L["boss_name"]
         boss_fill.rect_size.x = 594.0
         Sfx.play("boss")
     else:
         e = EnemyScript.new()
         e.position = _random_spawn()
         e.hp_mult = scale
+        e.theme = L["theme"]
         e.connect("died", self, "_on_enemy_died", [kind])
     e.setup(kind, player)
     alive_enemies += 1
@@ -351,14 +425,14 @@ func _spawn_enemy(kind, scale = 1.0):
 
 func _random_spawn():
     for i in range(30):
-        var p = Vector2(rand_range(90, ARENA.size.x - 90), rand_range(110, ARENA.size.y - 90))
+        var p = Vector2(rand_range(PLAY.position.x + 50, PLAY.end.x - 50), rand_range(PLAY.position.y + 60, PLAY.end.y - 50))
         var blocked = false
         for r in pillars:
             if r.grow(40).has_point(p):
                 blocked = true
         if not blocked and p.distance_to(player.global_position) > 350.0:
             return p
-    return Vector2(120, 140)
+    return Vector2(150, 200)
 
 func _on_summon(kind, count):
     for i in range(count):
@@ -368,20 +442,29 @@ func _echo_for(kind):
     var base = 3
     if kind == "wisp":
         base = 4
+    elif kind == "charger":
+        base = 5
     elif kind == "brute":
         base = 8
     elif kind == "warden":
         base = 60
-    return int(round(base * Game.echo_mult()))
+    elif kind == "jarl":
+        base = 90
+    return int(round(base * Game.echo_mult() * L["reward_mult"]))
 
 func _xp_for(kind):
+    var base = 5
     if kind == "wisp":
-        return 7
-    if kind == "brute":
-        return 14
-    if kind == "warden":
-        return 100
-    return 5
+        base = 7
+    elif kind == "charger":
+        base = 8
+    elif kind == "brute":
+        base = 14
+    elif kind == "warden":
+        base = 100
+    elif kind == "jarl":
+        base = 140
+    return int(round(base * L["reward_mult"]))
 
 func _on_enemy_died(kind):
     alive_enemies -= 1
@@ -399,8 +482,8 @@ func _on_boss_hp(hp, max_hp):
 func _on_boss_died():
     alive_enemies -= 1
     run_kills += 1
-    run_echoes += _echo_for("warden")
-    run_xp += _xp_for("warden")
+    run_echoes += _echo_for(L["boss"])
+    run_xp += _xp_for(L["boss"])
     rooms_cleared += 1
     state = "reckoning"
     boss_bg.visible = false
@@ -410,14 +493,24 @@ func _on_boss_died():
     for e in get_tree().get_nodes_in_group("enemies"):
         e._die()
     _update_labels()
-    var opts = [
+    _show_cards("reckon", L["reck_title"], L["reck_line"], _reck_options())
+
+func _reck_options():
+    if L["boss"] == "jarl":
+        return [
+            {"name": "Restore", "tag": "Mercy", "tag_color": Color(0.5, 1.0, 0.7), "border": Color(0.4, 0.9, 0.6),
+             "desc": "Rekindle the Jarl's hearth fire.\nYou gain +40 max HP and heal fully for the rest of this run."},
+            {"name": "Bind", "tag": "Power", "tag_color": Color(0.8, 0.5, 1.0), "border": Color(0.7, 0.4, 0.95),
+             "desc": "Bind the Jarl's frost to your blade.\nYou gain +35% attack damage but lose 25 max HP."},
+            {"name": "Release", "tag": "Freedom", "tag_color": Color(0.5, 0.8, 1.0), "border": Color(0.4, 0.7, 1.0),
+             "desc": "Let the Jarl fade into the snow.\nYou move 20% faster and gain +15% critical hit chance."}]
+    return [
         {"name": "Restore", "tag": "Mercy", "tag_color": Color(0.5, 1.0, 0.7), "border": Color(0.4, 0.9, 0.6),
          "desc": "Heal the Warden and balance its scales.\nYou gain +30 max HP and heal fully for the rest of this run."},
         {"name": "Bind", "tag": "Power", "tag_color": Color(0.8, 0.5, 1.0), "border": Color(0.7, 0.4, 0.95),
          "desc": "Take the Warden's power for yourself.\nYou gain +30% attack damage but lose 20 max HP."},
         {"name": "Release", "tag": "Freedom", "tag_color": Color(0.5, 0.8, 1.0), "border": Color(0.4, 0.7, 1.0),
          "desc": "Let the Warden die in peace.\nYou move 20% faster and your dash recharges 40% faster."}]
-    _show_cards("reckon", "THE JACKAL WARDEN KNEELS", "Oru: \"Its scales are broken. Choose, Keeper.\"", opts)
 
 func _clear_hazards():
     for p in get_tree().get_nodes_in_group("projectiles"):
@@ -452,19 +545,19 @@ func _open_doors():
     if t == "combat" or t == "elite":
         var rewards = ["gift", "echoes", "heal"]
         rewards.shuffle()
-        var xs = [650, 950]
+        var xs = [700, 932]
         for i in range(2):
             var d = DoorScript.new()
             d.reward = rewards[i]
-            d.label_text = ROOM_NAMES[nxt] + "\n" + ("Elite: " if t == "elite" else "") + REWARD_NAMES[rewards[i]]
-            d.position = Vector2(xs[i], 72)
+            d.label_text = L["rooms"][nxt] + "\n" + ("Elite: " if t == "elite" else "") + REWARD_NAMES[rewards[i]]
+            d.position = Vector2(xs[i], 128)
             add_child(d)
             doors.append(d)
     else:
         var d2 = DoorScript.new()
         d2.reward = "shrine" if t == "shrine" else "boss"
-        d2.label_text = ROOM_NAMES[nxt]
-        d2.position = Vector2(800, 72)
+        d2.label_text = L["rooms"][nxt]
+        d2.position = Vector2(816, 128)
         add_child(d2)
         doors.append(d2)
     Sfx.play("door")
@@ -474,24 +567,30 @@ func _take_door(d):
     state = "transition"
     Sfx.play("door")
     var rw = d.reward
+    var next_room = room_index + 1
+    if next_room >= ROOM_PLAN.size():
+        state = "ended"
+        return
     var tw = Tween.new()
     fade.add_child(tw)
     tw.interpolate_property(fade, "color:a", 0.0, 1.0, 0.3, Tween.TRANS_LINEAR, Tween.EASE_IN)
     tw.start()
     yield(tw, "tween_all_completed")
     tw.queue_free()
-    _enter_room(room_index + 1, rw)
+    if run_over or not is_inside_tree():
+        return
+    _enter_room(next_room, rw)
 
 func _open_shrine():
     state = "shrine"
     var opts = [
-        {"name": "Scale of Greed", "tag": "Bargain", "tag_color": Color(1.0, 0.8, 0.3), "border": Color(1.0, 0.75, 0.25),
+        {"name": L["shrine"][0], "tag": "Bargain", "tag_color": Color(1.0, 0.8, 0.3), "border": Color(1.0, 0.75, 0.25),
          "desc": "Pay 30 HP now.\nGain 150 Echoes (more with Echo Magnet)."},
-        {"name": "Scale of Blood", "tag": "Bargain", "tag_color": Color(1.0, 0.4, 0.4), "border": Color(0.95, 0.3, 0.3),
+        {"name": L["shrine"][1], "tag": "Bargain", "tag_color": Color(1.0, 0.4, 0.4), "border": Color(0.95, 0.3, 0.3),
          "desc": "Lose 20 max HP.\nGain +25% attack damage for the rest of this run."},
-        {"name": "Scale of Mercy", "tag": "Rest", "tag_color": Color(0.5, 1.0, 0.7), "border": Color(0.4, 0.9, 0.6),
+        {"name": L["shrine"][2], "tag": "Rest", "tag_color": Color(0.5, 1.0, 0.7), "border": Color(0.4, 0.9, 0.6),
          "desc": "Take nothing.\nHeal 30% of your max HP."}]
-    _show_cards("shrine", "THE SHRINE OF SCALES", "Oru: \"Every bargain has a price. Choose which you can pay.\"", opts)
+    _show_cards("shrine", L["shrine_title"], "Oru: \"Every bargain has a price. Choose which you can pay.\"", opts)
 
 # ---------- cards ----------
 
@@ -536,26 +635,43 @@ func _pick(i):
 
 func _apply_reckoning(i):
     var id = ["restore", "bind", "release"][i]
-    Game.data["warden"] = id
-    Game.data["warden_hist"][id] += 1
+    var key = L["reck_key"]
+    Game.data[key] = id
+    if key == "warden":
+        Game.data["warden_hist"][id] += 1
     var text = ""
-    if id == "restore":
-        player.max_hp += 30
-        player.hp = player.max_hp
-        text = "You restored the Warden.\nThe floodwater clears. Something below stirs."
-    elif id == "bind":
-        player.gift_dmg += 0.30
-        player.max_hp = int(max(30, player.max_hp - 20))
-        player.hp = int(min(player.hp, player.max_hp))
-        text = "You bound the Warden's power.\nIts jackal eyes now burn in yours."
+    if L["boss"] == "jarl":
+        if id == "restore":
+            player.max_hp += 40
+            player.hp = player.max_hp
+            text = "You rekindled the Jarl's hearth.\nWarmth spreads through the frozen halls."
+        elif id == "bind":
+            player.gift_dmg += 0.35
+            player.max_hp = int(max(30, player.max_hp - 25))
+            player.hp = int(min(player.hp, player.max_hp))
+            text = "You bound the Jarl's frost to your blade.\nIt hums with a cold, patient hunger."
+        else:
+            player.speed *= 1.2
+            player.crit_chance = min(0.8, player.crit_chance + 0.15)
+            text = "You released the Jarl.\nThe snow takes him, and the wind goes quiet."
     else:
-        player.speed *= 1.2
-        player.dash_cooldown *= 0.6
-        text = "You released the Warden.\nThe halls fall silent. Nothing here is watching now."
+        if id == "restore":
+            player.max_hp += 30
+            player.hp = player.max_hp
+            text = "You restored the Warden.\nThe floodwater clears. Something below stirs."
+        elif id == "bind":
+            player.gift_dmg += 0.30
+            player.max_hp = int(max(30, player.max_hp - 20))
+            player.hp = int(min(player.hp, player.max_hp))
+            text = "You bound the Warden's power.\nIts jackal eyes now burn in yours."
+        else:
+            player.speed *= 1.2
+            player.dash_cooldown *= 0.6
+            text = "You released the Warden.\nThe halls fall silent. Nothing here is watching now."
     player.emit_signal("hp_changed", player.hp, player.max_hp)
     state = "ended"
-    run_xp += 150
-    run_echoes += int(round(100 * Game.echo_mult()))
+    run_xp += int(round(150 * L["reward_mult"]))
+    run_echoes += int(round(100 * Game.echo_mult() * L["reward_mult"]))
     _update_labels()
     _show_message(text + "\n\nThe Ledger remembers.\nPress ENTER to return to the Terminus", 99999.0)
 
@@ -571,5 +687,5 @@ func _on_abandon():
 
 func _end_run(result):
     run_over = true
-    Game.finish_run(result, rooms_cleared, run_kills, run_echoes, run_xp)
+    Game.finish_run(result, rooms_cleared, run_kills, run_echoes, run_xp, Game.selected_line)
     Game.goto("res://scenes/Hub.tscn")

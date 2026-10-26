@@ -4,7 +4,7 @@ extends Node2D
 var vel = Vector2.ZERO
 var damage = 10
 var life = 5.0
-var radius = 6.0
+var radius = 7.0
 var target = null
 var color = Color(0.3, 0.85, 0.95)
 
@@ -18,7 +18,7 @@ func _physics_process(delta):
         queue_free()
         return
     var main = get_parent()
-    if not main.ARENA.has_point(position):
+    if not main.PLAY.has_point(position):
         queue_free()
         return
     for r in main.pillars:
