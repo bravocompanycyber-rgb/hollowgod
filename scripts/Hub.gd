@@ -100,6 +100,13 @@ func _wall(rect):
     sh.extents = rect.size / 2.0
     cs.shape = sh
     body.add_child(cs)
+    var occ = LightOccluder2D.new()
+    var poly = OccluderPolygon2D.new()
+    var hx = rect.size.x / 2.0
+    var hy = rect.size.y / 2.0
+    poly.polygon = PoolVector2Array([Vector2(-hx, -hy), Vector2(hx, -hy), Vector2(hx, hy), Vector2(-hx, hy)])
+    occ.occluder = poly
+    body.add_child(occ)
     add_child(body)
 
 func _light(pos, color, scale, energy):
@@ -180,7 +187,7 @@ func _draw():
         Art.tile(self, "wall_banner_blue" if c < 12 else "wall_banner_red", Rect2(c * TILE, TILE, TILE, TILE))
     # Gate to Line One
     draw_rect(Rect2(GATE_POS.x - 120, 28, 240, 120), Color(0.03, 0.05, 0.09))
-    Art.draw(self, "doors_all", Vector2(GATE_POS.x, 144), 3.5, false, Color(1, 1, 1), "bottom")
+    Art.draw(self, "doors_all", Vector2(GATE_POS.x, 144), 3.5, false, Color(1, 1, 1), "bottom", Vector2.ONE, true)
     draw_rect(Rect2(GATE_POS.x - 112, 36, 224, 108), Color(0.2, 0.7, 0.8, 0.12))
     # Platform edge and tracks
     draw_rect(Rect2(0, 720, AREA.size.x, 14), Color(0.9, 0.75, 0.15))
@@ -207,14 +214,14 @@ func _draw():
     draw_rect(desk, Color(0.6, 0.7, 0.92), false, 2.0)
     for i in range(5):
         draw_rect(Rect2(desk.position.x + 14 + i * 40, desk.position.y + 8, 28, 10), Color(0.85, 0.85, 0.95, 0.75))
-    Art.draw(self, "flask_big_blue", Vector2(desk.position.x + 190, desk.position.y + 18), 2.5, false, Color(1, 1, 1), "bottom")
-    Art.draw(self, "flask_big_green", Vector2(desk.position.x + 215, desk.position.y + 20), 2.5, false, Color(1, 1, 1), "bottom")
+    Art.draw(self, "flask_big_blue", Vector2(desk.position.x + 190, desk.position.y + 18), 2.5, false, Color(1, 1, 1), "bottom", Vector2.ONE, true)
+    Art.draw(self, "flask_big_green", Vector2(desk.position.x + 215, desk.position.y + 20), 2.5, false, Color(1, 1, 1), "bottom", Vector2.ONE, true)
     var forge = PROPS[2]
     draw_rect(Rect2(forge.position + Vector2(6, 10), forge.size), Color(0, 0, 0, 0.35))
     draw_rect(forge, Color(0.2, 0.15, 0.14))
     draw_rect(forge, Color(0.85, 0.5, 0.22), false, 2.0)
-    Art.draw(self, "weapon_axe", Vector2(1096, 582), 2.5, false, Color(1, 1, 1), "bottom")
-    Art.draw(self, "weapon_hammer", Vector2(1256, 584), 2.5, false, Color(1, 1, 1), "bottom")
+    Art.draw(self, "weapon_axe", Vector2(1096, 582), 2.5, false, Color(1, 1, 1), "bottom", Vector2.ONE, true)
+    Art.draw(self, "weapon_hammer", Vector2(1256, 584), 2.5, false, Color(1, 1, 1), "bottom", Vector2.ONE, true)
 
 # ---------- interaction ----------
 
@@ -269,6 +276,7 @@ func _on_dialogue_done(choice_id):
         _open_ledger()
 
 func _open_card(mode, title, sub, opts, can_close = false, extra = ""):
+    Sfx.play("open")
     card_mode = mode
     card = CardUIScript.new()
     ui_layer.add_child(card)
@@ -278,6 +286,7 @@ func _open_card(mode, title, sub, opts, can_close = false, extra = ""):
 
 func _close_card():
     if card != null:
+        Sfx.play("close")
         card.queue_free()
         card = null
     card_mode = ""
@@ -285,11 +294,12 @@ func _close_card():
 
 func _on_card_picked(i):
     if card_mode == "gate":
-        if i == 2:
+        if i == 4:
             _close_card()
             return
-        var line = "sunken" if i == 0 else "rime"
+        var line = ["sunken", "rime", "obsidian", "hollow"][i]
         if not Game.line_open(line):
+            Sfx.play("error")
             return
         _close_card()
         Game.selected_line = line
@@ -303,6 +313,8 @@ func _on_card_picked(i):
 func _open_gate():
     Sfx.play("click")
     var rime_open = Game.line_open("rime")
+    var obs_open = Game.line_open("obsidian")
+    var hol_open = Game.line_open("hollow")
     var opts = [
         {"name": "Line One", "tag": "The Sunken Hall", "tag_color": Color(0.5, 0.9, 1.0), "border": Color(0.4, 0.8, 0.9),
          "desc": "Five rooms of a drowned temple, ending with the Jackal Warden.\nChoose doors, collect Gifts, make your choices. You keep your Echoes and XP even if you die.",
@@ -310,7 +322,13 @@ func _open_gate():
         {"name": "Line Two", "tag": "The Rime Road", "tag_color": Color(0.7, 0.9, 1.0), "border": Color(0.6, 0.85, 1.0),
          "desc": "A frozen road through the halls of the Norse dead.\nTougher enemies, charging frost wolves, and the Frost Jarl.\nBetter rewards." if rime_open else "Locked.\nDefeat the Jackal Warden on Line One to open this line.",
          "foot": ("Cleared %d time(s)" % int(Game.data["cleared"].get("rime", 0))) if rime_open else "LOCKED", "disabled": not rime_open},
-        {"name": "Stay", "tag": "Terminus Station", "desc": "Talk to the others, visit the Forge, or check the Ledger first."}]
+        {"name": "Line Three", "tag": "The Obsidian Road", "tag_color": Color(1.0, 0.7, 0.4), "border": Color(1.0, 0.55, 0.25),
+         "desc": "The nine trials of Mictlan, the realm of the dead in Aztec belief. Obsidian winds, charging hounds, and the Lord of Mictlan. The hardest line, with the best rewards." if obs_open else "Locked.\nDefeat the Frost Jarl on Line Two to open this line.",
+         "foot": ("Cleared %d time(s)" % int(Game.data["cleared"].get("obsidian", 0))) if obs_open else "LOCKED", "disabled": not obs_open},
+        {"name": "The Hollow", "tag": "The final descent", "tag_color": Color(0.8, 0.6, 1.0), "border": Color(0.7, 0.5, 1.0),
+         "desc": "Whatever eats the gods waits at the bottom of every road. Your choices decide how this ends." if hol_open else "Locked.\nClear Lines One, Two and Three to open the way down.",
+         "foot": ("Endings found: %d / 6" % Game.endings_found()) if hol_open else "LOCKED", "disabled": not hol_open},
+        {"name": "Stay", "tag": "Terminus Station", "desc": "Talk to the others, visit the Forge, or check the Ledger."}]
     _open_card("gate", "BOARD A LINE", "Oru: \"Where to, Keeper?\"", opts, true)
 
 func _show_summary():
@@ -324,6 +342,12 @@ func _show_summary():
         Sfx.play("levelup")
     var opts = [{"name": "Run summary", "tag": "Saved", "tag_color": Color(0.5, 1, 0.6), "desc": desc, "border": Color(0.5, 0.9, 1.0)}]
     _open_card("summary", title, sub, opts)
+
+func _ending_list(d):
+    var names = d["endings"].keys()
+    if names.size() == 0:
+        return ""
+    return "  (" + PoolStringArray(names).join(", ") + ")"
 
 func _choice_name(c):
     if c == "restore":
@@ -343,8 +367,8 @@ func _open_ledger():
         wn = "Bound"
     elif d["warden"] == "release":
         wn = "Released"
-    var desc = "Keeper Level %d    (XP %d / %d)\nRuns: %d     Deaths: %d     Victories: %d\nTotal kills: %d     Deepest room: %d / 5\n\nThe Jackal Warden: %s     The Frost Jarl: %s\nLines cleared: Sunken Hall x%d, Rime Road x%d\nBond with Mara Voss: %d\nSecond Wind (Jonah's lighter): %s" % [
-        d["level"], d["xp"], Game.xp_to_next(), d["runs"], d["deaths"], d["wins"], d["kills_total"], d["best_room"], wn, _choice_name(d["jarl"]), int(d["cleared"].get("sunken", 0)), int(d["cleared"].get("rime", 0)), Game.bond("mara"),
+    var desc = "Keeper Level %d    (XP %d / %d)\nRuns: %d     Deaths: %d     Victories: %d\nTotal kills: %d     Deepest room: %d / 5\n\nThe Jackal Warden: %s     The Frost Jarl: %s     The Lord of Mictlan: %s\nThe Hollow: %s     Endings found: %d / 6%s\nLines cleared: Sunken Hall x%d, Rime Road x%d, Obsidian Road x%d\nBond with Mara Voss: %d\nSecond Wind (Jonah's lighter): %s" % [
+        d["level"], d["xp"], Game.xp_to_next(), d["runs"], d["deaths"], d["wins"], d["kills_total"], d["best_room"], wn, _choice_name(d["jarl"]), _choice_name(d["lord"]), _choice_name(d["hollow"]), Game.endings_found(), _ending_list(d), int(d["cleared"].get("sunken", 0)), int(d["cleared"].get("rime", 0)), int(d["cleared"].get("obsidian", 0)), Game.bond("mara"),
         "Yes" if Game.has_flag("second_wind") else "Not yet"]
     var opts = [{"name": "The Pantheon Ledger", "tag": "Sable's record of you", "tag_color": Color(0.7, 0.82, 1.0), "desc": desc, "border": Color(0.7, 0.82, 1.0)}]
     _open_card("ledger", "THE LEDGER", "Every choice is written down.", opts, true)

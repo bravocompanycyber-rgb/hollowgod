@@ -65,7 +65,14 @@ func _ready():
     light.texture_scale = 7.0
     light.color = Color(1.0, 0.86, 0.6)
     light.energy = 0.95
+    light.range_height = 70.0
+    light.shadow_enabled = Game.settings["effects"]
+    light.shadow_filter = Light2D.SHADOW_FILTER_PCF5
+    light.shadow_gradient_length = 14.0
+    light.shadow_buffer_size = 1024
+    light.shadow_color = Color(0, 0, 0, 0.78)
     add_child(light)
+    material = Art.sprite_material(Art.SCALE)
     cam = Camera2D.new()
     cam.current = true
     cam.smoothing_enabled = true
@@ -80,6 +87,10 @@ func setup_from_profile():
     speed = 265.0 * Game.bonus_speed()
     dash_cooldown = 0.55 * Game.dash_cd_mult()
     second_wind = Game.has_flag("second_wind")
+
+func apply_quality():
+    if light != null:
+        light.shadow_enabled = Game.settings["effects"]
 
 func set_camera_limits(rect):
     cam.limit_left = int(rect.position.x)
@@ -304,31 +315,34 @@ func _draw():
     # Body sprite
     var base = "knight_m_run_anim" if moving else "knight_m_idle_anim"
     var fname = Art.frame_name(base, clock, 11.0 if moving else 5.0)
+    var bob = 0.0
+    var stretch = Vector2(1.0 - 0.015 * sin(clock * 3.0), 1.0 + 0.025 * sin(clock * 3.0))
+    if dash_time_left > 0.0:
+        stretch = Vector2(1.28, 0.8)
+    elif attack_vis > 0.0:
+        stretch = Vector2(1.1, 0.92)
+    elif moving:
+        bob = -abs(sin(clock * 12.0)) * 3.0
+        stretch = Vector2(1.0 + 0.03 * sin(clock * 24.0), 1.0 - 0.03 * sin(clock * 24.0))
     var mod = Color(1, 1, 1)
     if not alive:
         fname = "knight_m_hit_anim_f0"
         mod = Color(0.5, 0.5, 0.55)
     elif invuln > 0.0 and int(invuln * 20.0) % 2 == 0:
         mod = Color(2.0, 0.7, 0.7)
-    if not Art.draw(self, fname, Vector2(0, RADIUS + 2), Art.SCALE, flip, mod):
+    if not Art.draw(self, fname, Vector2(0, RADIUS + 2 + bob), Art.SCALE, flip, mod, "bottom", stretch):
         draw_circle(Vector2.ZERO, RADIUS, Color(0.8, 0.92, 1.0))
     # Sword in hand
-    if alive and Art.tex != null:
-        var sw = Art.frames.get("weapon_knight_sword")
-        if sw != null:
-            var sx = -1.0 if flip else 1.0
-            var hand = Vector2(sx * 16.0, -16.0)
-            var rot = sx * 0.55
-            if attack_vis > 0.0:
-                var p2 = 1.0 - clamp(attack_vis / 0.15, 0.0, 1.0)
-                var a3 = facing.angle() - attack_arc / 2.0 + attack_arc * p2
-                hand = Vector2(0, -12) + Vector2.RIGHT.rotated(a3) * 10.0
-                rot = a3 + PI / 2.0
-            draw_set_transform(hand, rot, Vector2.ONE)
-            var w = sw.size.x * Art.SCALE * 0.8
-            var h = sw.size.y * Art.SCALE * 0.8
-            draw_texture_rect_region(Art.tex, Rect2(-w / 2.0, -h, w, h), sw)
-            draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+    if alive:
+        var sx = -1.0 if flip else 1.0
+        var hand = Vector2(sx * 16.0, -16.0)
+        var rot = sx * 0.55
+        if attack_vis > 0.0:
+            var p2 = 1.0 - clamp(attack_vis / 0.15, 0.0, 1.0)
+            var a3 = facing.angle() - attack_arc / 2.0 + attack_arc * p2
+            hand = Vector2(0, -12) + Vector2.RIGHT.rotated(a3) * 10.0
+            rot = a3 + PI / 2.0
+        Art.draw_at(self, "weapon_knight_sword", hand, rot, Art.SCALE * 0.8)
     # Lantern glow (so you can see where you are aiming)
     draw_circle(facing * (RADIUS + 10.0), 7.0, Color(1.0, 0.85, 0.4, 0.28))
     draw_circle(facing * (RADIUS + 10.0), 3.5, Color(1.0, 0.92, 0.55))

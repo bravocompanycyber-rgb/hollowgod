@@ -14,6 +14,7 @@ var flip = false
 
 func _ready():
     clock = randf() * 6.0
+    material = Art.sprite_material(Art.SCALE)
     var lh = 16.0 - Art.size_of(sprite + "_idle_anim_f0").y * Art.SCALE - 26.0
     if kind == "flame":
         lh = -68.0
@@ -39,5 +40,6 @@ func _draw():
         return
     Art.shadow(self, Vector2(0, 14), 20.0)
     var fname = Art.frame_name(sprite + "_idle_anim", clock, 5.0)
-    if not Art.draw(self, fname, Vector2(0, 16), Art.SCALE, flip, tint):
+    var br = Vector2(1.0 - 0.015 * sin(clock * 2.6), 1.0 + 0.025 * sin(clock * 2.6))
+    if not Art.draw(self, fname, Vector2(0, 16), Art.SCALE, flip, tint, "bottom", br):
         draw_circle(Vector2(0, -10), 14.0, c)

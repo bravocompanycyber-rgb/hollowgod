@@ -4,6 +4,13 @@ extends Node
 
 const RATE = 22050
 
+const FILES = {
+    "click": "ui_click", "back": "ui_back", "open": "ui_open", "close": "ui_close", "pickup": "pickup",
+    "levelup": "levelup", "error": "error", "gate": "gate", "parry": "parry", "drop": "drop", "door": "door"
+}
+
+var music_vol = 0.8
+var sfx_vol = 1.0
 var sounds = {}
 var pool = []
 var music_player = null
@@ -15,16 +22,24 @@ func _ready():
     for kind in [["hit", 0.10], ["kill", 0.28], ["dash", 0.16], ["swing", 0.09], ["hurt", 0.30], ["pickup", 0.22], ["click", 0.06],
                  ["door", 0.45], ["boss", 0.60], ["parry", 0.18], ["levelup", 0.50], ["shoot", 0.14], ["slam", 0.40]]:
         sounds[kind[0]] = _synth(kind[0], kind[1])
+    # Real recorded sounds (CC0) replace generated ones where we have them
+    for k in FILES.keys():
+        var st = _load_wav("res://assets/audio/" + FILES[k] + ".wav")
+        if st != null:
+            sounds[k] = st
     for i in range(8):
         var p = AudioStreamPlayer.new()
         add_child(p)
         pool.append(p)
     music_player = AudioStreamPlayer.new()
-    music_player.volume_db = -15.0
+    music_player.volume_db = -15.0 + _db(music_vol)
     add_child(music_player)
     music_streams["run"] = _drone([55.0, 82.5, 110.0, 165.0])
     music_streams["hub"] = _drone([65.5, 98.25, 131.0, 196.5])
     music_streams["rime"] = _drone([73.5, 110.25, 147.0, 220.5])
+    music_streams["obsidian"] = _drone([61.75, 92.625, 123.5, 185.25])
+    music_streams["hollow"] = _drone([49.0, 69.5, 103.0, 155.5])
+    Game.apply_settings()
 
 func play(name, vol = 0.0, pitch = 1.0):
     if not sounds.has(name):
@@ -37,9 +52,58 @@ func play(name, vol = 0.0, pitch = 1.0):
 
 func _go(p, name, vol, pitch):
     p.stream = sounds[name]
-    p.volume_db = vol
+    p.volume_db = vol + _db(sfx_vol)
     p.pitch_scale = pitch * rand_range(0.94, 1.06)
     p.play()
+
+func _db(v):
+    if v <= 0.001:
+        return -80.0
+    return linear2db(v)
+
+func set_volumes(m, s):
+    music_vol = m
+    sfx_vol = s
+    if music_player != null:
+        music_player.volume_db = -15.0 + _db(music_vol)
+
+func _load_wav(path):
+    if ResourceLoader.exists(path):
+        var r = load(path)
+        if r is AudioStream:
+            return r
+    var f = File.new()
+    if f.open(path, File.READ) != OK:
+        return null
+    var bytes = f.get_buffer(f.get_len())
+    f.close()
+    if bytes.size() < 44:
+        return null
+    var pos = 12
+    var channels = 1
+    var rate = 44100
+    var bits = 16
+    var data = null
+    while pos + 8 <= bytes.size():
+        var id = bytes.subarray(pos, pos + 3).get_string_from_ascii()
+        var size = bytes[pos + 4] | (bytes[pos + 5] << 8) | (bytes[pos + 6] << 16) | (bytes[pos + 7] << 24)
+        if id == "fmt ":
+            channels = bytes[pos + 10] | (bytes[pos + 11] << 8)
+            rate = bytes[pos + 12] | (bytes[pos + 13] << 8) | (bytes[pos + 14] << 16) | (bytes[pos + 15] << 24)
+            bits = bytes[pos + 22] | (bytes[pos + 23] << 8)
+        elif id == "data":
+            var end = int(min(pos + 8 + size, bytes.size())) - 1
+            data = bytes.subarray(pos + 8, end)
+            break
+        pos += 8 + size + (size % 2)
+    if data == null or bits != 16:
+        return null
+    var st = AudioStreamSample.new()
+    st.format = AudioStreamSample.FORMAT_16_BITS
+    st.mix_rate = rate
+    st.stereo = channels == 2
+    st.data = data
+    return st
 
 func music(name):
     if name == current_music:

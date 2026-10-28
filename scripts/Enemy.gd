@@ -30,6 +30,8 @@ var cstate = "idle"
 var ct = 0.0
 var cdir = Vector2.RIGHT
 var cooldown = 2.0
+var mat_scale = 3.0
+var tilt = 0.0
 var clock = 0.0
 var face_left = false
 
@@ -39,14 +41,16 @@ func setup(p_kind, p_target):
     strafe = 1.0 if randf() < 0.5 else -1.0
     clock = randf() * 4.0
     var rime = theme == "rime"
-    tint = Color(0.78, 0.92, 1.25) if rime else Color(1, 1, 1)
+    var obs = theme == "obsidian"
+    var hol = theme == "hollow"
+    tint = Color(0.78, 0.92, 1.25) if rime else (Color(1.05, 0.78, 1.0) if obs else (Color(0.62, 0.55, 0.95) if hol else Color(1, 1, 1)))
     if kind == "brute":
         hp = 80.0
         speed = 72.0
         radius = 30.0
         contact_damage = 20
         color = Color(0.7, 0.4, 0.95)
-        visual = "big_zombie" if rime else ["ogre", "big_zombie"][randi() % 2]
+        visual = "big_zombie" if rime else ("ogre" if (obs or hol) else ["ogre", "big_zombie"][randi() % 2])
     elif kind == "wisp":
         hp = 20.0
         speed = 95.0
@@ -54,7 +58,7 @@ func setup(p_kind, p_target):
         contact_damage = 8
         color = Color(0.3, 0.9, 1.0)
         shoot_timer = rand_range(1.2, 2.2)
-        visual = "orc_shaman" if rime else "necromancer"
+        visual = "orc_shaman" if rime else ("necromancer" if not hol else ["necromancer", "orc_shaman"][randi() % 2])
     elif kind == "charger":
         hp = 40.0
         speed = 105.0
@@ -62,18 +66,19 @@ func setup(p_kind, p_target):
         contact_damage = 14
         color = Color(1.0, 0.6, 0.25)
         cooldown = rand_range(1.2, 2.6)
-        visual = ["wogol", "masked_orc"][randi() % 2] if rime else ["imp", "chort"][randi() % 2]
+        visual = ["wogol", "masked_orc"][randi() % 2] if rime else (["chort", "chort", "imp"][randi() % 3] if obs else (["chort", "wogol", "imp"][randi() % 3] if hol else ["imp", "chort"][randi() % 2]))
     else:
         hp = 30.0
         speed = 118.0
         radius = 14.0
         contact_damage = 10
         color = Color(0.95, 0.3, 0.35)
-        visual = ["ice_zombie", "skeleton", "tiny_zombie"][randi() % 3] if rime else ["zombie", "tiny_zombie", "skeleton", "goblin"][randi() % 4]
+        visual = ["ice_zombie", "skeleton", "tiny_zombie"][randi() % 3] if rime else (["skeleton", "skeleton", "imp", "goblin"][randi() % 4] if obs else (["zombie", "skeleton", "ice_zombie", "goblin"][randi() % 4] if hol else ["zombie", "tiny_zombie", "skeleton", "goblin"][randi() % 4]))
     hp *= hp_mult
 
 func _ready():
     add_to_group("enemies")
+    material = Art.sprite_material(mat_scale)
     collision_layer = 4
     collision_mask = 1 | 4
     var shape = CircleShape2D.new()
@@ -136,6 +141,7 @@ func _physics_process(delta):
                     cooldown = rand_range(2.0, 3.2)
         knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
         move_and_slide(v)
+        tilt = lerp(tilt, clamp(v.x / 260.0, -0.2, 0.2), 0.2)
         if to_t.length() < radius + target.RADIUS + 2.0 and touch_cooldown <= 0.0:
             target.take_damage(contact_damage, global_position)
             touch_cooldown = 0.9
@@ -182,7 +188,7 @@ func _draw():
     if spawning:
         var k = clamp(spawn_left / spawn_total, 0.0, 1.0)
         draw_arc(Vector2.ZERO, radius + 4.0 + 16.0 * k, 0.0, TAU, 24, Color(color.r, color.g, color.b, 0.9 - 0.5 * k), 2.0)
-        Art.draw(self, Art.frame_name(visual + "_idle_anim", clock, 6.0), anchor, sc, face_left, Color(tint.r, tint.g, tint.b, 0.55 * (1.0 - k)))
+        Art.draw(self, Art.frame_name(visual + "_idle_anim", clock, 6.0), anchor, sc, face_left, Color(tint.r, tint.g, tint.b, 0.55 * (1.0 - k)), "bottom", Vector2(1.0 - 0.35 * k, 1.0 - 0.35 * k))
         return
     Art.shadow(self, anchor, radius * 1.1)
     var mod = tint
@@ -192,7 +198,15 @@ func _draw():
         draw_line(Vector2.ZERO, cdir * 300.0, Color(1.0, 0.4, 0.2, 0.6), 4.0)
         mod = Color(tint.r * 1.5, tint.g * 0.8, tint.b * 0.7)
     var fname = Art.frame_name(visual + "_run_anim", clock, 8.0)
-    if not Art.draw(self, fname, anchor, sc, face_left, mod):
+    var hop = -abs(sin(clock * 9.0)) * 3.0
+    var st = Vector2(1.0 + 0.04 * sin(clock * 18.0), 1.0 - 0.04 * sin(clock * 18.0))
+    # Soft glow so they stand out from the floor and feel alive
+    draw_circle(Vector2(0, -radius * 0.5), radius * 2.1, Color(color.r, color.g, color.b, 0.06))
+    draw_circle(Vector2(0, -radius * 0.5), radius * 1.4, Color(color.r, color.g, color.b, 0.09))
+    draw_set_transform(anchor, tilt, Vector2(1, 1))
+    var drew = Art.draw(self, fname, Vector2(0, hop), sc, face_left, mod, "bottom", st)
+    draw_set_transform(Vector2.ZERO, 0.0, Vector2(1, 1))
+    if not drew:
         draw_circle(Vector2.ZERO, radius, color)
     if kind == "wisp" and charging:
         draw_arc(Vector2.ZERO, radius + 8.0, 0.0, TAU, 20, Color(0.7, 1.0, 1.0, 0.9), 2.5)

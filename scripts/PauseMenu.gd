@@ -10,6 +10,7 @@ var controls_label = null
 var buttons = []
 var sound_button = null
 var shown = false
+var options = null
 
 const CONTROLS = "WASD or arrows    Move\nMouse    Aim\nLeft click or J    Attack (also swats bolts)\nSpace or Shift    Dash\nE or Enter    Talk, confirm, continue\n1 2 3 4 5    Pick a card or choice\nEsc    Pause\nF11    Fullscreen"
 
@@ -30,9 +31,9 @@ func _ready():
     t.align = Label.ALIGN_CENTER
     var items = []
     if mode == "hub":
-        items = [["Resume", "resume"], ["Save game", "save"], ["Sound: ON", "sound"], ["Fullscreen", "fullscreen"], ["Controls", "controls"], ["Quit to title", "title"]]
+        items = [["Resume", "resume"], ["Save game", "save"], ["Options", "options"], ["Controls", "controls"], ["Quit to title", "title"]]
     else:
-        items = [["Resume", "resume"], ["Sound: ON", "sound"], ["Fullscreen", "fullscreen"], ["Controls", "controls"], ["Abandon run (return to Terminus)", "abandon"], ["Quit to title", "title"]]
+        items = [["Resume", "resume"], ["Options", "options"], ["Controls", "controls"], ["Abandon run (return to Terminus)", "abandon"], ["Quit to title", "title"]]
     var y = 205
     for it in items:
         var b = Button.new()
@@ -50,18 +51,22 @@ func _ready():
         menu_root.add_child(b)
         b.connect("pressed", self, "_act", [it[1]])
         buttons.append(b)
-        if it[1] == "sound":
-            sound_button = b
         y += 56
     controls_label = FX.label(menu_root, Vector2(340, 200), CONTROLS, 19, Color(0.95, 0.95, 1.0))
     controls_label.rect_size = Vector2(600, 300)
     controls_label.visible = false
+    options = load("res://scripts/OptionsPanel.gd").new()
+    options.visible = false
+    menu_root.add_child(options)
+    options.connect("closed", self, "_options_closed")
     menu_root.visible = false
 
 func _input(event):
     if event.is_action_pressed("pause") and enabled:
         get_tree().set_input_as_handled()
-        if shown and controls_label.visible:
+        if shown and options.visible:
+            options._close()
+        elif shown and controls_label.visible:
             _show_controls(false)
         elif shown:
             _close()
@@ -72,17 +77,19 @@ func _open():
     shown = true
     menu_root.visible = true
     get_tree().paused = true
-    _refresh_sound()
+    Sfx.play("open")
+    buttons[0].grab_focus()
+
+func _options_closed():
+    for b in buttons:
+        b.visible = true
     buttons[0].grab_focus()
 
 func _close():
+    Sfx.play("close")
     shown = false
     menu_root.visible = false
     get_tree().paused = false
-
-func _refresh_sound():
-    if sound_button != null:
-        sound_button.text = "Sound: OFF" if AudioServer.is_bus_mute(0) else "Sound: ON"
 
 func _show_controls(on):
     controls_label.visible = on
@@ -90,17 +97,17 @@ func _show_controls(on):
         b.visible = not on
 
 func _act(id):
-    Sfx.play("click")
+    if id != "options":
+        Sfx.play("click")
     if id == "resume":
         _close()
     elif id == "save":
         Game.save()
         FX.popup(Vector2(640, 660), "Game saved", Color(0.5, 1, 0.6), 22)
-    elif id == "sound":
-        Sfx.toggle_mute()
-        _refresh_sound()
-    elif id == "fullscreen":
-        OS.window_fullscreen = not OS.window_fullscreen
+    elif id == "options":
+        for b in buttons:
+            b.visible = false
+        options.open()
     elif id == "controls":
         _show_controls(true)
     elif id == "abandon":

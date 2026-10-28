@@ -3,6 +3,10 @@ extends Node2D
 
 var items = []
 var clock = 0.0
+var mat_scale = 3.0
+
+func _ready():
+    material = Art.sprite_material(mat_scale)
 
 func _process(delta):
     clock += delta

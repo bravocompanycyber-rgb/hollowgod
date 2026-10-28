@@ -54,6 +54,34 @@ static func _oru(d):
             ["oru", "Line Two is open. The Rime Road. The Norse dead keep their halls cold and their grudges colder."],
             ["oru", "Their ruler, the Frost Jarl, never forgave anyone for anything. Expect to be tested."],
             ["oru", "Take Gifts. Take Bryn's steel. And do not stand where the floor is about to break."]], "choices": []}
+    if int(d["cleared"].get("rime", 0)) >= 1 and _seen(d, "oru_jarl") and not _seen(d, "oru_obsidian"):
+        return {"key": "oru_obsidian", "lines": [
+            ["oru", "Line Three has opened. The Obsidian Road. In their old stories, the dead of that land walked nine trials to reach their rest."],
+            ["oru", "Treat it with respect. These are not monsters. They are travellers who lost their guide."],
+            ["oru", "Which, I admit, is a sore subject for me."]], "choices": []}
+    if d["endings"].keys().size() > 0 and not _seen(d, "oru_ending"):
+        return {"key": "oru_ending", "lines": [
+            ["oru", "It is over. And yet I can still hear the tunnels humming."],
+            ["oru", "Every ending leaves a different world behind. If you want to see what else could have happened, the lines are open."],
+            ["oru", "I would like that, I think. Another walk, with you."]], "choices": []}
+    if int(d["cleared"].get("sunken", 0)) >= 1 and int(d["cleared"].get("rime", 0)) >= 1 and int(d["cleared"].get("obsidian", 0)) >= 1 and not _seen(d, "oru_hollow") and _seen(d, "oru_lord"):
+        return {"key": "oru_hollow", "lines": [
+            ["oru", "Three roads cleared. Three gods answered. The way down is open at last."],
+            ["oru", "The Hollow is at the very bottom, wearing what it swallowed. Whatever you have chosen, it remembers."],
+            ["oru", "Choose well, Keeper. And if you are asked to take a hand, think carefully about whose."]], "choices": []}
+    if int(d["cleared"].get("obsidian", 0)) >= 1 and not _seen(d, "oru_lord"):
+        var lc = d["lord"]
+        var ll = []
+        if lc == "restore":
+            ll = [["oru", "You returned the Lord's heart. The dead of that road sleep easier tonight."]]
+        elif lc == "bind":
+            ll = [["oru", "You took the crown of bone. It suits you more than I would like."]]
+        else:
+            ll = [["oru", "You let them walk on. After all this time, someone finally opened the road for them."]]
+        ll.append(["oru", "Three gods, three roads, one word on every tongue. The Hollow."])
+        ll.append(["oru", "I can feel it now, Keeper. Whatever sits at the bottom of all the lines is looking back."])
+        ll.append(["oru", "The way down is not open yet. When it is, you will know."])
+        return {"key": "oru_lord", "lines": ll, "choices": []}
     if int(d["cleared"].get("rime", 0)) >= 1 and not _seen(d, "oru_jarl"):
         var j = d["jarl"]
         var jl = []

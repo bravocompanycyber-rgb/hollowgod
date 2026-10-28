@@ -1,10 +1,10 @@
 # Godot 3 generated files
 .import/
 export.cfg
-export_presets.cfg
 *.translation
 .mono/
 .godot/
 # OS
 Thumbs.db
 .DS_Store
+build/

@@ -20,10 +20,38 @@ var wave_hit = false
 var boss_tint = Color(1.0, 0.9, 0.62)
 var sprite_base = "big_demon"
 var sprite_scale = 4.5
+var phase_marks = [0.5]
+var max_phase = 2
 
 func setup(p_kind, p_target):
     target = p_target
-    if boss_kind == "jarl":
+    if boss_kind == "hollow":
+        kind = "hollow"
+        hp = 1800
+        max_hp = 1800
+        speed = 90.0
+        radius = 58.0
+        contact_damage = 32
+        color = Color(0.7, 0.5, 1.0)
+        sprite_base = "necromancer"
+        sprite_scale = 9.0
+        boss_tint = Color(0.66, 0.54, 1.0)
+        cycle = ["slam", "volley", "fan", "charge", "volley"]
+        phase_marks = [0.66, 0.33]
+        max_phase = 3
+    elif boss_kind == "lord":
+        kind = "lord"
+        hp = 1200
+        max_hp = 1200
+        speed = 85.0
+        radius = 54.0
+        contact_damage = 30
+        color = Color(1.0, 0.6, 0.25)
+        sprite_base = "skeleton"
+        sprite_scale = 8.5
+        boss_tint = Color(1.0, 0.95, 0.8)
+        cycle = ["fan", "slam", "volley", "charge"]
+    elif boss_kind == "jarl":
         kind = "jarl"
         hp = 900
         max_hp = 900
@@ -49,6 +77,7 @@ func setup(p_kind, p_target):
         cycle = ["charge", "volley"]
     spawn_total = 1.4
     spawn_left = 1.4
+    mat_scale = sprite_scale
 
 func _physics_process(delta):
     if dead:
@@ -71,7 +100,7 @@ func _physics_process(delta):
     var dir = to_t.normalized()
     face = dir
     t -= delta
-    var sp = speed * (1.3 if phase == 2 else 1.0)
+    var sp = speed * (1.0 + 0.3 * (phase - 1))
     var v = Vector2.ZERO
     if state == "chase":
         v = dir * sp
@@ -123,16 +152,30 @@ func _physics_process(delta):
     if to_t.length() < radius + target.RADIUS + 2.0 and touch_cooldown <= 0.0:
         target.take_damage(contact_damage, global_position)
         touch_cooldown = 0.9
-    if phase == 1 and hp <= max_hp / 2:
-        phase = 2
-        FX.shake(12.0)
-        FX.popup(global_position, "ENRAGED", Color(1.0, 0.4, 0.3), 28)
-        if boss_kind == "jarl":
-            emit_signal("summon_request", "wisp", 2)
+    if phase < max_phase and hp <= max_hp * phase_marks[phase - 1]:
+        phase += 1
+        _phase_up()
+    update()
+
+func _phase_up():
+    FX.shake(12.0)
+    FX.popup(global_position, "ENRAGED" if phase == 2 and max_phase == 2 else ("PHASE %d" % phase), Color(1.0, 0.4, 0.3), 28)
+    if boss_kind == "hollow":
+        if phase == 2:
+            emit_signal("summon_request", "wisp", 3)
             emit_signal("summon_request", "charger", 2)
         else:
             emit_signal("summon_request", "husk", 4)
-    update()
+            emit_signal("summon_request", "charger", 3)
+            emit_signal("summon_request", "wisp", 2)
+    elif boss_kind == "lord":
+        emit_signal("summon_request", "charger", 3)
+        emit_signal("summon_request", "wisp", 2)
+    elif boss_kind == "jarl":
+        emit_signal("summon_request", "wisp", 2)
+        emit_signal("summon_request", "charger", 2)
+    else:
+        emit_signal("summon_request", "husk", 4)
 
 func _next_attack(dir):
     var a = cycle[cycle_i % cycle.size()]
@@ -152,7 +195,7 @@ func _next_attack(dir):
         t = 0.9
 
 func _fire_ring():
-    var n = 10 if phase == 1 else 16
+    var n = 10 + 6 * (phase - 1)
     ring_offset += 0.3
     for i in range(n):
         _shoot(Vector2.RIGHT.rotated(TAU * i / n + ring_offset), 210.0, 12)
@@ -160,7 +203,7 @@ func _fire_ring():
     Sfx.play("boss", -2.0)
 
 func _fire_fan(dir):
-    var spread = 3 if phase == 1 else 4
+    var spread = 2 + phase
     for i in range(-spread, spread + 1):
         _shoot(dir.rotated(i * 0.2), 280.0, 12)
     FX.shake(5.0)
@@ -219,7 +262,33 @@ func _draw():
         draw_arc(Vector2.ZERO, max(wave_r - 14.0, 1.0), 0.0, TAU, 64, Color(1, 1, 1, 0.5), 3.0)
     var moving = state == "chase" or state == "charge"
     var fname = Art.frame_name(bn + ("_run_anim" if moving else "_idle_anim"), clock, 8.0)
-    if not Art.draw(self, fname, anchor, sc, face.x < 0.0, mod):
+    var breathe = Vector2(1.0 - 0.02 * sin(clock * 2.5), 1.0 + 0.03 * sin(clock * 2.5))
+    if boss_kind == "hollow":
+        draw_circle(Vector2(0, -50), radius + 60.0, Color(0.5, 0.3, 0.9, 0.10))
+        draw_circle(Vector2(0, -50), radius + 28.0, Color(0.6, 0.4, 1.0, 0.14))
+    if boss_kind == "lord":
+        draw_circle(Vector2(0, -40), radius + 36.0, Color(1.0, 0.5, 0.15, 0.12))
+        draw_circle(Vector2(0, -40), radius + 14.0, Color(1.0, 0.55, 0.2, 0.14))
+    if not Art.draw(self, fname, anchor, sc, face.x < 0.0, mod, "bottom", breathe):
         draw_circle(Vector2.ZERO, radius, color)
+    if boss_kind == "hollow":
+        # The swallowed gods orbit the Hollow
+        var gods = ["big_demon_idle_anim_f0", "ogre_idle_anim_f0", "skeleton_idle_anim_f0"]
+        var gs = [2.2, 2.2, 3.0]
+        for i in range(3):
+            var ga = clock * (0.9 + 0.35 * phase) + TAU * i / 3.0
+            var gp = Vector2(cos(ga) * 130.0, -60.0 + sin(ga) * 44.0)
+            Art.draw(self, gods[i], gp, gs[i], false, Color(0.7, 0.6, 1.0, 0.85), "center")
+        draw_circle(Vector2(-14, -108), 5.0, Color(1, 1, 1, 0.9))
+        draw_circle(Vector2(14, -108), 5.0, Color(1, 1, 1, 0.9))
+    if boss_kind == "lord":
+        var top = anchor.y - 16.0 * sc + 22.0
+        var gold = Color(1.0, 0.78, 0.25)
+        draw_colored_polygon(PoolVector2Array([Vector2(-34, top), Vector2(-34, top - 22), Vector2(-17, top - 8), Vector2(0, top - 30), Vector2(17, top - 8), Vector2(34, top - 22), Vector2(34, top)]), gold)
+        draw_rect(Rect2(-34, top - 2, 68, 6), Color(0.7, 0.45, 0.1))
+        for i in range(3):
+            var a = clock * 1.4 + TAU * i / 3.0
+            var sp = Vector2(cos(a) * 96.0, -50.0 + sin(a) * 30.0)
+            Art.draw(self, "skull", sp, 2.5, false, Color(1.0, 0.9, 0.7, 0.95), "center")
     if state == "volley_windup" or state == "fan_windup":
         draw_arc(Vector2.ZERO, radius + 14.0, 0.0, TAU, 28, Color(1, 1, 1, 0.8), 3.0)

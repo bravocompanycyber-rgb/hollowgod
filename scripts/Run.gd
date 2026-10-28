@@ -26,7 +26,8 @@ const LINES = {
         "hp_mult": 1.0, "reward_mult": 1.0, "music": "run", "snow": false,
         "floor": [1.0, 1.0, 1.0], "ambient": [0.62, 0.65, 0.82], "banner": "wall_banner_red", "rune": [0.95, 0.75, 0.3],
         "shrine_title": "THE SHRINE OF SCALES", "shrine": ["Scale of Greed", "Scale of Blood", "Scale of Mercy"],
-        "reck_key": "warden", "reck_title": "THE JACKAL WARDEN KNEELS", "reck_line": "Oru: \"Its scales are broken. Choose, Keeper.\""
+        "reck_key": "warden", "reck_title": "THE JACKAL WARDEN KNEELS", "reck_line": "Oru: \"Its scales are broken. Choose, Keeper.\"",
+        "fountain": "blue", "embers": false
     },
     "rime": {
         "name": "The Rime Road", "theme": "rime", "boss": "jarl", "boss_name": "THE FROST JARL",
@@ -35,7 +36,28 @@ const LINES = {
         "hp_mult": 1.35, "reward_mult": 1.5, "music": "rime", "snow": true,
         "floor": [0.82, 0.94, 1.25], "ambient": [0.6, 0.7, 0.95], "banner": "wall_banner_blue", "rune": [0.6, 0.85, 1.0],
         "shrine_title": "THE SHRINE OF THE NORNS", "shrine": ["Thread of Greed", "Thread of Blood", "Thread of Mercy"],
-        "reck_key": "jarl", "reck_title": "THE FROST JARL KNEELS", "reck_line": "Oru: \"Even the cold must end somewhere. Choose, Keeper.\""
+        "reck_key": "jarl", "reck_title": "THE FROST JARL KNEELS", "reck_line": "Oru: \"Even the cold must end somewhere. Choose, Keeper.\"",
+        "fountain": "blue", "embers": false
+    },
+    "obsidian": {
+        "name": "The Obsidian Road", "theme": "obsidian", "boss": "lord", "boss_name": "THE LORD OF MICTLAN",
+        "rooms": ["The Dog's River Crossing", "Hall of Obsidian Wind", "Court of the Nine Trials", "Shrine of the Dead", "The Bone Throne"],
+        "enemies": [[["husk", 6], ["charger", 2]], [["husk", 5], ["wisp", 3], ["charger", 3]], [["brute", 3], ["wisp", 3], ["charger", 3], ["husk", 3]], [], [["lord", 1]]],
+        "hp_mult": 1.7, "reward_mult": 2.0, "music": "obsidian", "snow": false,
+        "floor": [0.78, 0.6, 0.86], "ambient": [0.62, 0.5, 0.74], "banner": "wall_banner_red", "rune": [1.0, 0.5, 0.2],
+        "shrine_title": "THE SHRINE OF THE DEAD", "shrine": ["Offering of Gold", "Offering of Blood", "Offering of Rest"],
+        "reck_key": "lord", "reck_title": "THE LORD OF MICTLAN KNEELS", "reck_line": "Oru: \"Nine trials, and this is the last. It is yours to end, Keeper.\"",
+        "fountain": "red", "embers": true
+    },
+    "hollow": {
+        "name": "The Hollow", "theme": "hollow", "boss": "hollow", "boss_name": "THE HOLLOW",
+        "rooms": ["The Fall", "Hall of Swallowed Gods", "Court of Echoes", "The Last Shrine", "The Heart of the Hollow"],
+        "enemies": [[["husk", 6], ["charger", 3]], [["husk", 4], ["wisp", 4], ["charger", 3]], [["brute", 4], ["wisp", 3], ["charger", 4], ["husk", 3]], [], [["hollow", 1]]],
+        "hp_mult": 2.0, "reward_mult": 2.5, "music": "hollow", "snow": false,
+        "floor": [0.6, 0.55, 0.85], "ambient": [0.5, 0.46, 0.72], "banner": "wall_banner_blue", "rune": [0.78, 0.6, 1.0],
+        "shrine_title": "THE LAST SHRINE", "shrine": ["Pact of Gold", "Pact of Blood", "Pact of Peace"],
+        "reck_key": "hollow", "reck_title": "THE HOLLOW FALTERS", "reck_line": "Oru: \"This is it, Keeper. Everything you chose comes down to this.\"",
+        "fountain": "blue", "embers": false, "void": true
     }
 }
 # Layout pieces: [kind, column, row] in tiles. A "column" is 1x3 tiles tall, a "crate" is 1x1.
@@ -55,6 +77,7 @@ const DEATH_LINES = [
 ]
 
 var L = {}
+var reck_ids = ["restore", "bind", "release"]
 var dust = null
 var pillars = []
 var pillar_kinds = []
@@ -86,6 +109,11 @@ var hp_label = null
 var dash_fill = null
 var room_label = null
 var stat_label = null
+var echo_label = null
+var hurt_rect = null
+var hurt_alpha = 0.0
+var last_hp = -1
+var clock = 0.0
 var gifts_label = null
 var message_label = null
 var boss_bg = null
@@ -162,7 +190,11 @@ func _enter_room(i, reward):
     if room_type == "boss":
         _show_message(L["rooms"][i] + "\n" + L["boss_name"], 2.2)
     else:
-        _show_message("%s\nRoom %d / %d: %s" % [L["name"], i + 1, ROOM_PLAN.size(), L["rooms"][i]], 2.0)
+        var msg = "%s\nRoom %d / %d: %s" % [L["name"], i + 1, ROOM_PLAN.size(), L["rooms"][i]]
+        if i == 0 and int(Game.data["runs"]) <= 1:
+            _show_message(msg + "\n\nWASD move   |   Click or J attack   |   Space dash", 5.0)
+        else:
+            _show_message(msg, 2.0)
     fade.color = Color(0, 0, 0, 1)
     var tw = Tween.new()
     fade.add_child(tw)
@@ -179,6 +211,13 @@ func _wall(rect):
     sh.extents = rect.size / 2.0
     cs.shape = sh
     body.add_child(cs)
+    var occ = LightOccluder2D.new()
+    var poly = OccluderPolygon2D.new()
+    var hx = rect.size.x / 2.0
+    var hy = rect.size.y / 2.0
+    poly.polygon = PoolVector2Array([Vector2(-hx, -hy), Vector2(hx, -hy), Vector2(hx, hy), Vector2(-hx, hy)])
+    occ.occluder = poly
+    body.add_child(occ)
     wall_root.add_child(body)
 
 func _build_dust():
@@ -200,11 +239,23 @@ func _build_dust():
         d.initial_velocity = 12.0
         d.scale_amount = 3.0
         d.color = Color(0.9, 0.97, 1.0, 0.7)
+    if L.get("void", false):
+        d.amount = 60
+        d.gravity = Vector2(0, -18)
+        d.initial_velocity = 10.0
+        d.scale_amount = 3.5
+        d.color = Color(0.7, 0.5, 1.0, 0.6)
+    if L["embers"]:
+        d.amount = 70
+        d.gravity = Vector2(0, -35)
+        d.initial_velocity = 14.0
+        d.scale_amount = 3.0
+        d.color = Color(1.0, 0.55, 0.2, 0.7)
     dust = d
     add_child(d)
 
 func _set_deco():
-    var blue = room_type != "boss" or L["boss"] == "jarl"
+    var blue = L["fountain"] == "blue" and not (room_type == "boss" and L["boss"] == "warden")
     var mid = "wall_fountain_mid_blue_anim" if blue else "wall_fountain_mid_red_anim"
     var basin = "wall_fountain_basin_blue_anim" if blue else "wall_fountain_basin_red_anim"
     var items = []
@@ -225,8 +276,18 @@ func _draw():
         tint = Color(base.r * 0.9, base.g * 0.96, base.b * 1.1)
         banner = "wall_banner_blue"
     elif room_type == "boss":
-        tint = Color(base.r * 1.1, base.g * 0.86, base.b * 0.8) if L["boss"] == "warden" else Color(base.r * 0.85, base.g * 0.95, base.b * 1.15)
-        banner = "wall_banner_yellow" if L["boss"] == "warden" else "wall_banner_blue"
+        if L["boss"] == "warden":
+            tint = Color(base.r * 1.1, base.g * 0.86, base.b * 0.8)
+            banner = "wall_banner_yellow"
+        elif L["boss"] == "jarl":
+            tint = Color(base.r * 0.85, base.g * 0.95, base.b * 1.15)
+            banner = "wall_banner_blue"
+        elif L["boss"] == "hollow":
+            tint = Color(base.r * 0.75, base.g * 0.7, base.b * 0.95)
+            banner = "wall_banner_blue"
+        else:
+            tint = Color(base.r * 0.9, base.g * 0.8, base.b * 0.95)
+            banner = "wall_banner_yellow"
     var rng = RandomNumberGenerator.new()
     rng.seed = 777 + room_index * 13
     # Dark stone behind the walls
@@ -270,16 +331,24 @@ func _draw():
     for i in range(8):
         var ang = TAU * i / 8.0
         draw_line(cen + Vector2.RIGHT.rotated(ang) * 90.0, cen + Vector2.RIGHT.rotated(ang) * 210.0, Color(rc[0], rc[1], rc[2], 0.18), 2.0)
-    # Columns and crates
+    # Columns and crates: brighter than the floor, with clear glowing borders and contact shadows
+    var edge = Color(rc[0] * 0.45 + 0.55, rc[1] * 0.45 + 0.55, rc[2] * 0.45 + 0.55, 0.95)
+    var bright = Color(min(tint.r * 1.5, 1.7), min(tint.g * 1.5, 1.7), min(tint.b * 1.65, 1.8))
     for k in range(pillars.size()):
         var r = pillars[k]
-        draw_rect(Rect2(r.position + Vector2(8, r.size.y - 14), Vector2(r.size.x, 22)), Color(0, 0, 0, 0.3))
+        draw_rect(Rect2(r.position.x - 6, r.position.y + r.size.y - 10, r.size.x + 18, 28), Color(0, 0, 0, 0.42))
         if pillar_kinds[k] == "column":
-            Art.tile(self, "column_top", Rect2(r.position.x, r.position.y, TILE, TILE), tint)
-            Art.tile(self, "column_mid", Rect2(r.position.x, r.position.y + TILE, TILE, TILE), tint)
-            Art.tile(self, "column_base", Rect2(r.position.x, r.position.y + 2 * TILE, TILE, TILE), tint)
+            draw_rect(r.grow(2.0), Color(0.2, 0.18, 0.27))
+            draw_rect(r.grow(-3.0), Color(0.31, 0.29, 0.4))
+            Art.tile(self, "column_top", Rect2(r.position.x, r.position.y, TILE, TILE), bright)
+            Art.tile(self, "column_mid", Rect2(r.position.x, r.position.y + TILE, TILE, TILE), bright)
+            Art.tile(self, "column_base", Rect2(r.position.x, r.position.y + 2 * TILE, TILE, TILE), bright)
+            draw_rect(r.grow(2.0), edge, false, 2.5)
+            draw_rect(Rect2(r.position.x + 3, r.position.y + 3, 4, r.size.y - 6), Color(1, 1, 1, 0.14))
         else:
-            Art.tile(self, "crate", Rect2(r.position.x, r.position.y - 18, TILE, 66), tint)
+            var cr = Rect2(r.position.x, r.position.y - 18, TILE, 66)
+            Art.tile(self, "crate", cr, bright)
+            draw_rect(cr.grow(1.5), edge, false, 2.0)
 
 # ---------- hud ----------
 
@@ -288,28 +357,31 @@ func _build_hud():
     add_child(ui_layer)
     FX.add_vignette(ui_layer)
     var bg = ColorRect.new()
-    bg.rect_position = Vector2(24, 24)
+    bg.rect_position = Vector2(64, 24)
     bg.rect_size = Vector2(266, 28)
     bg.color = Color(0, 0, 0, 0.65)
     ui_layer.add_child(bg)
     hp_fill = ColorRect.new()
-    hp_fill.rect_position = Vector2(27, 27)
+    hp_fill.rect_position = Vector2(67, 27)
     hp_fill.rect_size = Vector2(260, 22)
     hp_fill.color = Color(0.85, 0.2, 0.3)
     ui_layer.add_child(hp_fill)
-    hp_label = FX.label(ui_layer, Vector2(34, 28), "", 16)
+    hp_label = FX.label(ui_layer, Vector2(74, 28), "", 16)
+    _icon("ui_heart_full", Vector2(18, 16), 44.0)
     var dbg = ColorRect.new()
-    dbg.rect_position = Vector2(24, 58)
+    dbg.rect_position = Vector2(64, 58)
     dbg.rect_size = Vector2(146, 10)
     dbg.color = Color(0, 0, 0, 0.65)
     ui_layer.add_child(dbg)
     dash_fill = ColorRect.new()
-    dash_fill.rect_position = Vector2(27, 61)
+    dash_fill.rect_position = Vector2(67, 61)
     dash_fill.rect_size = Vector2(140, 4)
     dash_fill.color = Color(0.5, 0.9, 1.0)
     ui_layer.add_child(dash_fill)
     room_label = FX.label(ui_layer, Vector2(24, 76), "", 20, Color(0.95, 0.8, 0.4), true)
     stat_label = FX.label(ui_layer, Vector2(24, 106), "", 16, Color(0.8, 0.95, 1.0))
+    _icon("coin_anim_f0", Vector2(24, 132), 24.0)
+    echo_label = FX.label(ui_layer, Vector2(54, 132), "", 16, Color(1.0, 0.9, 0.5))
     gifts_label = FX.label(ui_layer, Vector2(24, 500), "", 14, Color(0.95, 0.85, 0.5))
     var hint = FX.label(ui_layer, Vector2(24, 692), "WASD move | SPACE dash | Click/J attack (swats bolts) | Esc pause", 14, Color(1, 1, 1, 0.6))
     message_label = FX.label(ui_layer, Vector2(0, 230), "", 30, Color(1, 0.95, 0.8), true)
@@ -331,11 +403,29 @@ func _build_hud():
     boss_label.rect_size = Vector2(600, 22)
     boss_label.align = Label.ALIGN_CENTER
     boss_label.visible = false
+    hurt_rect = ColorRect.new()
+    hurt_rect.rect_size = Vector2(1280, 720)
+    hurt_rect.color = Color(0.9, 0.05, 0.1, 0.0)
+    hurt_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    ui_layer.add_child(hurt_rect)
     fade = ColorRect.new()
     fade.rect_size = Vector2(1280, 720)
     fade.color = Color(0, 0, 0, 1)
     fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
     ui_layer.add_child(fade)
+
+func _icon(frame, pos, size):
+    var tex = Art.atlas_texture(frame)
+    if tex == null:
+        return
+    var tr = TextureRect.new()
+    tr.texture = tex
+    tr.expand = true
+    tr.stretch_mode = TextureRect.STRETCH_SCALE
+    tr.rect_position = pos
+    tr.rect_size = Vector2(size, size)
+    tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    ui_layer.add_child(tr)
 
 func _show_message(text, seconds):
     message_label.text = text
@@ -343,12 +433,16 @@ func _show_message(text, seconds):
     message_time = seconds
 
 func _on_hp_changed(hp, max_hp):
+    if last_hp >= 0 and hp < last_hp:
+        hurt_alpha = 0.45
+    last_hp = hp
     hp_fill.rect_size.x = 260.0 * clamp(float(hp) / float(max_hp), 0.0, 1.0)
     hp_label.text = "HP  %d / %d" % [max(hp, 0), max_hp]
 
 func _update_labels():
     room_label.text = "Room %d / %d" % [room_index + 1, ROOM_PLAN.size()]
-    stat_label.text = "Kills %d      Echoes %d" % [run_kills, run_echoes]
+    stat_label.text = "Kills %d" % run_kills
+    echo_label.text = "Echoes %d" % run_echoes
     var counts = {}
     var order = []
     for g in gifts_taken:
@@ -366,6 +460,12 @@ func _update_labels():
 # ---------- flow ----------
 
 func _process(delta):
+    clock += delta
+    hurt_alpha = max(0.0, hurt_alpha - delta * 1.6)
+    var pulse = 0.0
+    if player != null and player.alive and player.hp <= player.max_hp * 0.25:
+        pulse = 0.10 + 0.07 * sin(clock * 6.0)
+    hurt_rect.color.a = max(hurt_alpha, pulse)
     if Input.is_action_just_pressed("fullscreen"):
         OS.window_fullscreen = not OS.window_fullscreen
     if message_time > 0.0:
@@ -400,7 +500,7 @@ func _start_room():
 
 func _spawn_enemy(kind, scale = 1.0):
     var e = null
-    if kind == "warden" or kind == "jarl":
+    if kind == "warden" or kind == "jarl" or kind == "lord" or kind == "hollow":
         e = BossScript.new()
         e.boss_kind = kind
         e.position = Vector2(816, 290)
@@ -450,6 +550,10 @@ func _echo_for(kind):
         base = 60
     elif kind == "jarl":
         base = 90
+    elif kind == "lord":
+        base = 120
+    elif kind == "hollow":
+        base = 220
     return int(round(base * Game.echo_mult() * L["reward_mult"]))
 
 func _xp_for(kind):
@@ -464,6 +568,10 @@ func _xp_for(kind):
         base = 100
     elif kind == "jarl":
         base = 140
+    elif kind == "lord":
+        base = 180
+    elif kind == "hollow":
+        base = 300
     return int(round(base * L["reward_mult"]))
 
 func _on_enemy_died(kind):
@@ -496,6 +604,28 @@ func _on_boss_died():
     _show_cards("reckon", L["reck_title"], L["reck_line"], _reck_options())
 
 func _reck_options():
+    reck_ids = ["restore", "bind", "release"]
+    if L["boss"] == "hollow":
+        var opts = [
+            {"name": "Restore", "tag": "Return the gods", "tag_color": Color(0.5, 1.0, 0.7), "border": Color(0.4, 0.9, 0.6),
+             "desc": "Give every swallowed god back what the Hollow took.\nEnding: The Keeper (or The Ferryman if your three Reckonings were all different)."},
+            {"name": "Bind", "tag": "Claim the Hollow", "tag_color": Color(0.8, 0.5, 1.0), "border": Color(0.7, 0.4, 0.95),
+             "desc": "Close your hand around the Hollow and everything in it.\nEnding: The Usurper. Bind too often and it may end badly."},
+            {"name": "Release", "tag": "Let go", "tag_color": Color(0.5, 0.8, 1.0), "border": Color(0.4, 0.7, 1.0),
+             "desc": "Open your hand. Let the gods, the dead and the Hollow go.\nEnding: The Wake."}]
+        if Game.truth_available():
+            reck_ids.append("truth")
+            opts.append({"name": "Oru's Hand", "tag": "The Truth", "tag_color": Color(1.0, 0.9, 0.5), "border": Color(1.0, 0.85, 0.4),
+                "desc": "Take Oru's hand and show the Hollow everyone who helped you.\nA secret ending. Needs Jonah's lighter and all three earlier Reckonings."})
+        return opts
+    if L["boss"] == "lord":
+        return [
+            {"name": "Restore", "tag": "Mercy", "tag_color": Color(0.5, 1.0, 0.7), "border": Color(0.4, 0.9, 0.6),
+             "desc": "Return the Lord's heart to its resting place.\nYou gain +50 max HP and heal fully for the rest of this run."},
+            {"name": "Bind", "tag": "Power", "tag_color": Color(0.8, 0.5, 1.0), "border": Color(0.7, 0.4, 0.95),
+             "desc": "Take the crown of bone for yourself.\nYou gain +40% attack damage but lose 30 max HP."},
+            {"name": "Release", "tag": "Freedom", "tag_color": Color(0.5, 0.8, 1.0), "border": Color(0.4, 0.7, 1.0),
+             "desc": "Let the dead walk on to their rest.\nYou move 20% faster, gain +10% critical chance and dash 30% sooner."}]
     if L["boss"] == "jarl":
         return [
             {"name": "Restore", "tag": "Mercy", "tag_color": Color(0.5, 1.0, 0.7), "border": Color(0.4, 0.9, 0.6),
@@ -634,13 +764,38 @@ func _pick(i):
         _apply_reckoning(i)
 
 func _apply_reckoning(i):
-    var id = ["restore", "bind", "release"][i]
+    var id = reck_ids[i]
     var key = L["reck_key"]
+    if key == "hollow":
+        Game.data["hollow"] = id
+        var ending = Game.compute_ending(id)
+        Game.data["endings"][ending] = true
+        Game.pending_ending = ending
+        state = "ended"
+        run_xp += int(round(200 * L["reward_mult"]))
+        run_echoes += int(round(150 * Game.echo_mult() * L["reward_mult"]))
+        _end_run("win")
+        return
     Game.data[key] = id
     if key == "warden":
         Game.data["warden_hist"][id] += 1
     var text = ""
-    if L["boss"] == "jarl":
+    if L["boss"] == "lord":
+        if id == "restore":
+            player.max_hp += 50
+            player.hp = player.max_hp
+            text = "You returned the Lord's heart.\nThe nine trials fall quiet, and the dead sleep."
+        elif id == "bind":
+            player.gift_dmg += 0.40
+            player.max_hp = int(max(30, player.max_hp - 30))
+            player.hp = int(min(player.hp, player.max_hp))
+            text = "You took the crown of bone.\nThe dead bow, and it feels like a debt."
+        else:
+            player.speed *= 1.2
+            player.crit_chance = min(0.8, player.crit_chance + 0.10)
+            player.dash_cooldown *= 0.7
+            text = "You released the dead.\nThe obsidian wind softens as they walk on."
+    elif L["boss"] == "jarl":
         if id == "restore":
             player.max_hp += 40
             player.hp = player.max_hp
@@ -688,4 +843,7 @@ func _on_abandon():
 func _end_run(result):
     run_over = true
     Game.finish_run(result, rooms_cleared, run_kills, run_echoes, run_xp, Game.selected_line)
-    Game.goto("res://scenes/Hub.tscn")
+    if Game.pending_ending != "":
+        Game.goto("res://scenes/Ending.tscn")
+    else:
+        Game.goto("res://scenes/Hub.tscn")

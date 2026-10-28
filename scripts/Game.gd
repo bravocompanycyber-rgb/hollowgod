@@ -3,7 +3,8 @@ extends Node
 # Save file: user://save.json  (in Godot's user folder on your PC)
 
 const SAVE_PATH = "user://save.json"
-const VERSION = "0.3"
+const SETTINGS_PATH = "user://settings.json"
+const VERSION = "0.7"
 
 const FORGE = [
     {"id": "vitality", "name": "Vessel of Lamplight", "desc": "Permanently adds 10 max HP for each level.", "max": 5, "costs": [40, 80, 140, 220, 320]},
@@ -16,6 +17,8 @@ const FORGE = [
 var data = {}
 var last_run = null
 var selected_line = "sunken"
+var pending_ending = ""
+var settings = {"music": 0.8, "sfx": 1.0, "fullscreen": false, "effects": true}
 
 func default_data():
     return {
@@ -24,6 +27,9 @@ func default_data():
         "forge": {"vitality": 0, "edge": 0, "agility": 0, "windsigil": 0, "fortune": 0},
         "warden": "",
         "jarl": "",
+        "lord": "",
+        "hollow": "",
+        "endings": {},
         "cleared": {},
         "warden_hist": {"restore": 0, "bind": 0, "release": 0},
         "flags": {}, "bonds": {"mara": 0}, "talked": {}
@@ -31,6 +37,37 @@ func default_data():
 
 func _ready():
     data = default_data()
+    load_settings()
+
+func load_settings():
+    var f = File.new()
+    if not f.file_exists(SETTINGS_PATH):
+        return
+    if f.open(SETTINGS_PATH, File.READ) != OK:
+        return
+    var r = JSON.parse(f.get_as_text())
+    f.close()
+    if r.error == OK and typeof(r.result) == TYPE_DICTIONARY:
+        for k in r.result.keys():
+            if settings.has(k):
+                settings[k] = r.result[k]
+    settings["music"] = clamp(float(settings["music"]), 0.0, 1.0)
+    settings["sfx"] = clamp(float(settings["sfx"]), 0.0, 1.0)
+    settings["fullscreen"] = bool(settings["fullscreen"])
+    settings["effects"] = bool(settings["effects"])
+
+func save_settings():
+    var f = File.new()
+    if f.open(SETTINGS_PATH, File.WRITE) == OK:
+        f.store_string(JSON.print(settings))
+        f.close()
+
+func apply_settings():
+    OS.window_fullscreen = settings["fullscreen"]
+    Sfx.set_volumes(settings["music"], settings["sfx"])
+    Art.use_normals = settings["effects"]
+    if get_tree() != null:
+        get_tree().call_group("player", "apply_quality")
 
 func has_save():
     var f = File.new()
@@ -121,7 +158,36 @@ func line_open(id):
         return true
     if id == "rime":
         return int(data["wins"]) >= 1 or int(data["cleared"].get("sunken", 0)) >= 1
+    if id == "obsidian":
+        return int(data["cleared"].get("rime", 0)) >= 1
+    if id == "hollow":
+        return int(data["cleared"].get("sunken", 0)) >= 1 and int(data["cleared"].get("rime", 0)) >= 1 and int(data["cleared"].get("obsidian", 0)) >= 1
     return false
+
+func truth_available():
+    return has_flag("second_wind") and data["warden"] != "" and data["jarl"] != "" and data["lord"] != ""
+
+# Which ending the player earns, from the three earlier Reckonings plus the final choice.
+func compute_ending(final_choice):
+    if final_choice == "truth":
+        return "The Truth"
+    var cs = [data["warden"], data["jarl"], data["lord"]]
+    if cs.has("restore") and cs.has("bind") and cs.has("release"):
+        return "The Ferryman"
+    var binds = 0
+    for c in cs:
+        if c == "bind":
+            binds += 1
+    if final_choice == "bind" and binds >= 2:
+        return "The Hollow Crown"
+    if final_choice == "restore":
+        return "The Keeper"
+    if final_choice == "bind":
+        return "The Usurper"
+    return "The Wake"
+
+func endings_found():
+    return data["endings"].keys().size()
 
 func finish_run(result, rooms, kills, echoes, xp, line = "sunken"):
     var levels = 0
