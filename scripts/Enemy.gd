@@ -32,6 +32,14 @@ var cdir = Vector2.RIGHT
 var cooldown = 2.0
 var mat_scale = 3.0
 var tilt = 0.0
+var hp_max = 1.0
+var burn_time = 0.0
+var burn_total = 0.0
+var burn_acc = 0.0
+var champion = ""
+var armor = 1.0
+var fuse = 0.0
+var front_dir = Vector2.RIGHT
 var clock = 0.0
 var face_left = false
 
@@ -59,6 +67,20 @@ func setup(p_kind, p_target):
         color = Color(0.3, 0.9, 1.0)
         shoot_timer = rand_range(1.2, 2.2)
         visual = "orc_shaman" if rime else ("necromancer" if not hol else ["necromancer", "orc_shaman"][randi() % 2])
+    elif kind == "bomber":
+        hp = 25.0
+        speed = 80.0
+        radius = 14.0
+        contact_damage = 0
+        color = Color(1.0, 0.55, 0.2)
+        visual = "masked_orc" if rime else ("imp" if obs else (["goblin", "imp"][randi() % 2] if hol else "goblin"))
+    elif kind == "guardian":
+        hp = 70.0
+        speed = 62.0
+        radius = 20.0
+        contact_damage = 15
+        color = Color(0.6, 0.78, 1.0)
+        visual = "orc_warrior"
     elif kind == "charger":
         hp = 40.0
         speed = 105.0
@@ -75,6 +97,30 @@ func setup(p_kind, p_target):
         color = Color(0.95, 0.3, 0.35)
         visual = ["ice_zombie", "skeleton", "tiny_zombie"][randi() % 3] if rime else (["skeleton", "skeleton", "imp", "goblin"][randi() % 4] if obs else (["zombie", "skeleton", "ice_zombie", "goblin"][randi() % 4] if hol else ["zombie", "tiny_zombie", "skeleton", "goblin"][randi() % 4]))
     hp *= hp_mult
+    hp_max = hp
+
+func ignite(total):
+    burn_total = max(burn_total * 0.5, total)
+    burn_time = 1.5
+    burn_acc = 0.0
+
+func _burn_tick(delta):
+    if burn_time > 0.0 and not dead:
+        burn_time -= delta
+        burn_acc += delta
+        if burn_acc >= 0.5:
+            burn_acc -= 0.5
+            take_hit(burn_total / 3.0, Vector2.ZERO, false, true)
+
+func make_champion(mod):
+    champion = mod
+    hp *= 2.2
+    hp_max = hp
+    radius *= 1.15
+    if mod == "frenzied":
+        speed *= 1.4
+    elif mod == "armored":
+        armor = 0.55
 
 func _ready():
     add_to_group("enemies")
@@ -93,6 +139,9 @@ func _physics_process(delta):
     clock += delta
     flash = max(0.0, flash - delta)
     touch_cooldown = max(0.0, touch_cooldown - delta)
+    _burn_tick(delta)
+    if dead:
+        return
     if spawning:
         spawn_left -= delta
         if spawn_left <= 0.0:
@@ -118,6 +167,7 @@ func _physics_process(delta):
                 shoot_timer = rand_range(2.0, 2.8)
                 charging = false
         face_left = dir.x < 0.0
+        front_dir = dir
         var v = move_dir * speed + knock
         if kind == "charger":
             ct -= delta
@@ -139,10 +189,21 @@ func _physics_process(delta):
                 if ct <= 0.0:
                     cstate = "idle"
                     cooldown = rand_range(2.0, 3.2)
+        if kind == "bomber":
+            if fuse > 0.0:
+                fuse -= delta
+                v = knock
+                charging = true
+                if fuse <= 0.0:
+                    _explode()
+                    return
+            elif to_t.length() < 130.0:
+                fuse = 0.9
+                Sfx.play("shoot", -4.0)
         knock = knock.move_toward(Vector2.ZERO, 900.0 * delta)
         move_and_slide(v)
         tilt = lerp(tilt, clamp(v.x / 260.0, -0.2, 0.2), 0.2)
-        if to_t.length() < radius + target.RADIUS + 2.0 and touch_cooldown <= 0.0:
+        if contact_damage > 0 and to_t.length() < radius + target.RADIUS + 2.0 and touch_cooldown <= 0.0:
             target.take_damage(contact_damage, global_position)
             touch_cooldown = 0.9
     update()
@@ -151,16 +212,27 @@ func _shoot(dir, spd, dmg):
     var p = ProjectileScript.new()
     p.position = global_position + dir * (radius + 8.0) + Vector2(0, -radius * 0.6)
     p.vel = dir * spd
-    p.damage = dmg
+    p.damage = int(round(dmg * Game.asc_damage()))
     p.target = target
     p.color = color
     get_parent().add_child(p)
     Sfx.play("shoot", -8.0)
 
-func take_hit(amount, dir, crit = false):
+func take_hit(amount, dir, crit = false, from_burn = false):
     if dead or spawning:
         return
+    amount *= armor
+    if kind == "guardian" and not from_burn and front_dir.dot(-dir) > 0.55:
+        amount *= 0.2
+        FX.popup(global_position, "BLOCK", Color(0.7, 0.85, 1.0), 16)
+        Sfx.play("parry", -4.0)
     hp -= amount
+    if from_burn:
+        FX.popup(global_position, int(round(amount)), Color(1.0, 0.6, 0.2), 14)
+        flash = 0.05
+        if hp <= 0:
+            _die()
+        return
     knock = dir * (240.0 if kind == "brute" else 420.0)
     flash = 0.1
     FX.shake(3.0)
@@ -173,9 +245,24 @@ func take_hit(amount, dir, crit = false):
     if hp <= 0:
         _die()
 
+# Area blast (bomber fuse ends, or a volatile champion dies)
+func _blast(r, dmg):
+    FX.burst(global_position, Color(1.0, 0.6, 0.2), 30, 260.0)
+    FX.shake(8.0)
+    Sfx.play("slam")
+    if target != null and is_instance_valid(target) and target.alive:
+        if global_position.distance_to(target.global_position) < r + target.RADIUS:
+            target.take_damage(int(round(dmg * Game.asc_damage())), global_position)
+
+func _explode():
+    _blast(110.0, 28)
+    _die()
+
 func _die():
     dead = true
     remove_from_group("enemies")
+    if champion == "volatile":
+        _blast(100.0, 22)
     FX.burst(global_position, color, 24, 180.0)
     FX.shake(4.0)
     Sfx.play("kill", -2.0)
@@ -191,7 +278,21 @@ func _draw():
         Art.draw(self, Art.frame_name(visual + "_idle_anim", clock, 6.0), anchor, sc, face_left, Color(tint.r, tint.g, tint.b, 0.55 * (1.0 - k)), "bottom", Vector2(1.0 - 0.35 * k, 1.0 - 0.35 * k))
         return
     Art.shadow(self, anchor, radius * 1.1)
+    if champion != "":
+        var cc = Color(1.0, 0.8, 0.2)
+        if champion == "frenzied":
+            cc = Color(1.0, 0.3, 0.3)
+        elif champion == "armored":
+            cc = Color(0.6, 0.75, 1.0)
+        draw_circle(Vector2(0, -radius * 0.5), radius * 2.6, Color(cc.r, cc.g, cc.b, 0.10))
+        draw_arc(Vector2(0, -radius * 0.3), radius + 12.0 + 3.0 * sin(clock * 5.0), 0.0, TAU, 30, Color(cc.r, cc.g, cc.b, 0.85), 3.0)
+    if kind == "bomber" and fuse > 0.0:
+        var pulse = 0.5 + 0.3 * sin(clock * 22.0)
+        draw_circle(Vector2.ZERO, 110.0, Color(1.0, 0.3, 0.2, 0.10 + 0.08 * pulse))
+        draw_arc(Vector2.ZERO, 110.0, 0.0, TAU, 40, Color(1.0, 0.35, 0.2, 0.6 + 0.3 * pulse), 3.0)
     var mod = tint
+    if kind == "bomber" and fuse > 0.0:
+        mod = Color(2.0, 0.8, 0.7) if int(clock * 14.0) % 2 == 0 else tint
     if flash > 0.0:
         mod = Color(2.6, 2.6, 2.6)
     if kind == "charger" and cstate == "windup":
@@ -208,6 +309,10 @@ func _draw():
     draw_set_transform(Vector2.ZERO, 0.0, Vector2(1, 1))
     if not drew:
         draw_circle(Vector2.ZERO, radius, color)
+    if kind == "guardian":
+        var fa = front_dir.angle()
+        draw_arc(Vector2(0, -radius * 0.4), radius + 10.0, fa - 0.9, fa + 0.9, 14, Color(0.65, 0.85, 1.0, 0.9), 4.0)
+        draw_arc(Vector2(0, -radius * 0.4), radius + 5.0, fa - 0.8, fa + 0.8, 12, Color(1, 1, 1, 0.35), 2.0)
     if kind == "wisp" and charging:
         draw_arc(Vector2.ZERO, radius + 8.0, 0.0, TAU, 20, Color(0.7, 1.0, 1.0, 0.9), 2.5)
         draw_circle(Vector2(0, -radius), 6.0, Color(0.5, 1.0, 1.0, 0.5))

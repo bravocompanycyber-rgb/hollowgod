@@ -14,6 +14,7 @@ FX="*res://scripts/FX.gd"
 Art="*res://scripts/Art.gd"
 Game="*res://scripts/Game.gd"
 Sfx="*res://scripts/Sfx.gd"
+Toast="*res://scripts/Toast.gd"
 
 [display]
 

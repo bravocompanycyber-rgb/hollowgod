@@ -4,7 +4,7 @@ extends Node
 
 const SAVE_PATH = "user://save.json"
 const SETTINGS_PATH = "user://settings.json"
-const VERSION = "0.7"
+const VERSION = "0.9"
 
 const FORGE = [
     {"id": "vitality", "name": "Vessel of Lamplight", "desc": "Permanently adds 10 max HP for each level.", "max": 5, "costs": [40, 80, 140, 220, 320]},
@@ -14,11 +14,48 @@ const FORGE = [
     {"id": "fortune", "name": "Echo Magnet", "desc": "You earn 15% more Echoes for each level.", "max": 5, "costs": [60, 120, 190, 280, 400]}
 ]
 
+const ACHIEVEMENTS = [
+    {"id": "first_blood", "name": "First Blood", "desc": "Defeat your first enemy."},
+    {"id": "clean_room", "name": "Untouchable", "desc": "Clear a room without taking damage."},
+    {"id": "deflector", "name": "Deflector", "desc": "Swat 25 enemy bolts out of the air."},
+    {"id": "collector", "name": "Collector", "desc": "Hold 8 Gifts in one run."},
+    {"id": "epic_find", "name": "Epic Find", "desc": "Take an Epic Gift."},
+    {"id": "second_wind", "name": "Jonah's Wish", "desc": "Be saved by Second Wind."},
+    {"id": "smith", "name": "Apprentice Smith", "desc": "Buy a Forge upgrade."},
+    {"id": "master_smith", "name": "Master Smith", "desc": "Max out a Forge upgrade."},
+    {"id": "level5", "name": "Seasoned Keeper", "desc": "Reach Keeper level 5."},
+    {"id": "level10", "name": "Veteran Keeper", "desc": "Reach Keeper level 10."},
+    {"id": "persistent", "name": "Death Is A Door", "desc": "Die 10 times."},
+    {"id": "slayer", "name": "Slayer", "desc": "Defeat 500 enemies in total."},
+    {"id": "warden", "name": "Weighed And Found Light", "desc": "Defeat the Jackal Warden."},
+    {"id": "jarl", "name": "Warmth In The Frost", "desc": "Defeat the Frost Jarl."},
+    {"id": "lord", "name": "Nine Trials Done", "desc": "Defeat the Lord of Mictlan."},
+    {"id": "hollow", "name": "The Bottom Of Everything", "desc": "Defeat the Hollow."},
+    {"id": "all_endings", "name": "Every Road", "desc": "Find all six endings."},
+    {"id": "truth", "name": "The Truth", "desc": "Find the secret ending."},
+    {"id": "ascended", "name": "Rising Heat", "desc": "Clear a Line on Ascension 3 or higher."},
+    {"id": "fast", "name": "Swift Descent", "desc": "Clear a Line in under 8 minutes."},
+    {"id": "contractor", "name": "Contractor", "desc": "Complete 5 contracts from Mara."}
+]
+
+# Contracts: optional goals Mara offers before a run. Finish one during the run for bonus Echoes and XP.
+const BOUNTIES = [
+    {"id": "slay30", "name": "Cull the Dead", "desc": "Defeat 30 enemies in one run.", "stat": "kills", "goal": 30, "echoes": 60, "xp": 60},
+    {"id": "slay50", "name": "Mass Cull", "desc": "Defeat 50 enemies in one run.", "stat": "kills", "goal": 50, "echoes": 110, "xp": 110},
+    {"id": "parry8", "name": "Bolt Breaker", "desc": "Swat 8 enemy bolts in one run.", "stat": "parries", "goal": 8, "echoes": 70, "xp": 60},
+    {"id": "clean2", "name": "Untouched", "desc": "Clear 2 rooms without taking damage.", "stat": "clean_rooms", "goal": 2, "echoes": 90, "xp": 80},
+    {"id": "gifts4", "name": "Greedy Hands", "desc": "Collect 4 Gifts in one run.", "stat": "gifts", "goal": 4, "echoes": 80, "xp": 70},
+    {"id": "chargers6", "name": "Hound Hunter", "desc": "Defeat 6 Chargers in one run.", "stat": "chargers", "goal": 6, "echoes": 90, "xp": 80},
+    {"id": "brutes4", "name": "Giant Slayer", "desc": "Defeat 4 Brutes in one run.", "stat": "brutes", "goal": 4, "echoes": 100, "xp": 90}
+]
+
 var data = {}
 var last_run = null
 var selected_line = "sunken"
+var selected_ascension = 0
+var run_seconds = 0.0
 var pending_ending = ""
-var settings = {"music": 0.8, "sfx": 1.0, "fullscreen": false, "effects": true}
+var settings = {"music": 0.8, "sfx": 1.0, "fullscreen": false, "effects": true, "keys": {}}
 
 func default_data():
     return {
@@ -30,6 +67,11 @@ func default_data():
         "lord": "",
         "hollow": "",
         "endings": {},
+        "achievements": {},
+        "bounty": "",
+        "bounties_done": 0,
+        "ascension_max": 0,
+        "parries": 0,
         "cleared": {},
         "warden_hist": {"restore": 0, "bind": 0, "release": 0},
         "flags": {}, "bonds": {"mara": 0}, "talked": {}
@@ -55,6 +97,8 @@ func load_settings():
     settings["sfx"] = clamp(float(settings["sfx"]), 0.0, 1.0)
     settings["fullscreen"] = bool(settings["fullscreen"])
     settings["effects"] = bool(settings["effects"])
+    if typeof(settings["keys"]) != TYPE_DICTIONARY:
+        settings["keys"] = {}
 
 func save_settings():
     var f = File.new()
@@ -66,6 +110,7 @@ func apply_settings():
     OS.window_fullscreen = settings["fullscreen"]
     Sfx.set_volumes(settings["music"], settings["sfx"])
     Art.use_normals = settings["effects"]
+    Inputs.apply_keys()
     if get_tree() != null:
         get_tree().call_group("player", "apply_quality")
 
@@ -146,6 +191,47 @@ func xp_to_next():
 func has_flag(name):
     return data["flags"].has(name) and data["flags"][name]
 
+func bounty_def(id):
+    for b in BOUNTIES:
+        if b["id"] == id:
+            return b
+    return null
+
+# Three contracts that change after every run.
+func random_bounties(n):
+    var rng = RandomNumberGenerator.new()
+    rng.seed = 1000 + int(data["runs"]) * 7 + int(data["deaths"]) * 13 + int(data["wins"]) * 31
+    var pool = BOUNTIES.duplicate()
+    var out = []
+    while out.size() < n and pool.size() > 0:
+        var i = rng.randi() % pool.size()
+        out.append(pool[i])
+        pool.remove(i)
+    return out
+
+func unlock(id):
+    if data["achievements"].has(id):
+        return
+    data["achievements"][id] = true
+    for a in ACHIEVEMENTS:
+        if a["id"] == id:
+            Toast.push("Achievement unlocked", a["name"] + "\n" + a["desc"])
+    Sfx.play("levelup")
+    save()
+
+# Ascension: optional extra difficulty for better rewards (unlocked by clearing a Line).
+func asc_hp():
+    return 1.0 + 0.2 * selected_ascension
+
+func asc_speed():
+    return 1.0 + 0.04 * selected_ascension
+
+func asc_damage():
+    return 1.0 + 0.1 * selected_ascension
+
+func asc_reward():
+    return 1.0 + 0.25 * selected_ascension
+
 func bond(id):
     return int(data["bonds"].get(id, 0))
 
@@ -204,5 +290,29 @@ func finish_run(result, rooms, kills, echoes, xp, line = "sunken"):
         data["wins"] += 1
         data["cleared"][line] = int(data["cleared"].get(line, 0)) + 1
     data["best_room"] = int(max(data["best_room"], rooms))
-    last_run = {"result": result, "rooms": rooms, "kills": kills, "echoes": echoes, "xp": xp, "levels": levels, "level": data["level"]}
+    var asc_note = ""
+    if result == "win":
+        var ids = {"sunken": "warden", "rime": "jarl", "obsidian": "lord", "hollow": "hollow"}
+        if ids.has(line):
+            unlock(ids[line])
+        if selected_ascension >= 3:
+            unlock("ascended")
+        if run_seconds > 0.0 and run_seconds <= 480.0:
+            unlock("fast")
+        if selected_ascension == int(data["ascension_max"]) and data["ascension_max"] < 5:
+            data["ascension_max"] = int(data["ascension_max"]) + 1
+            asc_note = "Ascension %d unlocked!" % data["ascension_max"]
+    if data["level"] >= 5:
+        unlock("level5")
+    if data["level"] >= 10:
+        unlock("level10")
+    if data["deaths"] >= 10:
+        unlock("persistent")
+    if data["kills_total"] >= 500:
+        unlock("slayer")
+    if data["endings"].keys().size() >= 6:
+        unlock("all_endings")
+    if data["endings"].has("The Truth"):
+        unlock("truth")
+    last_run = {"result": result, "rooms": rooms, "kills": kills, "echoes": echoes, "xp": xp, "levels": levels, "level": data["level"], "note": asc_note}
     save()

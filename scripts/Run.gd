@@ -22,7 +22,7 @@ const LINES = {
     "sunken": {
         "name": "The Sunken Hall", "theme": "sunken", "boss": "warden", "boss_name": "THE JACKAL WARDEN",
         "rooms": ["Flooded Antechamber", "Hall of Reeds", "Court of the Weighed", "Shrine of Scales", "The Warden's Hall"],
-        "enemies": [[["husk", 5]], [["husk", 5], ["wisp", 2]], [["brute", 2], ["husk", 4], ["wisp", 2]], [], [["warden", 1]]],
+        "enemies": [[["husk", 5]], [["husk", 4], ["wisp", 2], ["bomber", 2]], [["brute", 2], ["husk", 3], ["wisp", 2], ["guardian", 1]], [], [["warden", 1]]],
         "hp_mult": 1.0, "reward_mult": 1.0, "music": "run", "snow": false,
         "floor": [1.0, 1.0, 1.0], "ambient": [0.62, 0.65, 0.82], "banner": "wall_banner_red", "rune": [0.95, 0.75, 0.3],
         "shrine_title": "THE SHRINE OF SCALES", "shrine": ["Scale of Greed", "Scale of Blood", "Scale of Mercy"],
@@ -32,7 +32,7 @@ const LINES = {
     "rime": {
         "name": "The Rime Road", "theme": "rime", "boss": "jarl", "boss_name": "THE FROST JARL",
         "rooms": ["Frozen Gate", "Hall of Howling Winds", "Court of the Frost Wolves", "Shrine of the Norns", "The Jarl's Longhall"],
-        "enemies": [[["husk", 6], ["charger", 1]], [["husk", 5], ["wisp", 3], ["charger", 2]], [["brute", 3], ["wisp", 2], ["charger", 2], ["husk", 3]], [], [["jarl", 1]]],
+        "enemies": [[["husk", 5], ["charger", 1], ["guardian", 1]], [["husk", 4], ["wisp", 3], ["charger", 2], ["bomber", 2]], [["brute", 3], ["wisp", 2], ["charger", 2], ["guardian", 2], ["husk", 2]], [], [["jarl", 1]]],
         "hp_mult": 1.35, "reward_mult": 1.5, "music": "rime", "snow": true,
         "floor": [0.82, 0.94, 1.25], "ambient": [0.6, 0.7, 0.95], "banner": "wall_banner_blue", "rune": [0.6, 0.85, 1.0],
         "shrine_title": "THE SHRINE OF THE NORNS", "shrine": ["Thread of Greed", "Thread of Blood", "Thread of Mercy"],
@@ -42,7 +42,7 @@ const LINES = {
     "obsidian": {
         "name": "The Obsidian Road", "theme": "obsidian", "boss": "lord", "boss_name": "THE LORD OF MICTLAN",
         "rooms": ["The Dog's River Crossing", "Hall of Obsidian Wind", "Court of the Nine Trials", "Shrine of the Dead", "The Bone Throne"],
-        "enemies": [[["husk", 6], ["charger", 2]], [["husk", 5], ["wisp", 3], ["charger", 3]], [["brute", 3], ["wisp", 3], ["charger", 3], ["husk", 3]], [], [["lord", 1]]],
+        "enemies": [[["husk", 5], ["charger", 2], ["bomber", 2]], [["husk", 4], ["wisp", 3], ["charger", 3], ["guardian", 2]], [["brute", 3], ["wisp", 3], ["charger", 3], ["guardian", 2], ["bomber", 2]], [], [["lord", 1]]],
         "hp_mult": 1.7, "reward_mult": 2.0, "music": "obsidian", "snow": false,
         "floor": [0.78, 0.6, 0.86], "ambient": [0.62, 0.5, 0.74], "banner": "wall_banner_red", "rune": [1.0, 0.5, 0.2],
         "shrine_title": "THE SHRINE OF THE DEAD", "shrine": ["Offering of Gold", "Offering of Blood", "Offering of Rest"],
@@ -52,7 +52,7 @@ const LINES = {
     "hollow": {
         "name": "The Hollow", "theme": "hollow", "boss": "hollow", "boss_name": "THE HOLLOW",
         "rooms": ["The Fall", "Hall of Swallowed Gods", "Court of Echoes", "The Last Shrine", "The Heart of the Hollow"],
-        "enemies": [[["husk", 6], ["charger", 3]], [["husk", 4], ["wisp", 4], ["charger", 3]], [["brute", 4], ["wisp", 3], ["charger", 4], ["husk", 3]], [], [["hollow", 1]]],
+        "enemies": [[["husk", 5], ["charger", 3], ["bomber", 2]], [["husk", 3], ["wisp", 4], ["charger", 3], ["guardian", 2], ["bomber", 2]], [["brute", 4], ["wisp", 3], ["charger", 4], ["guardian", 3], ["bomber", 2]], [], [["hollow", 1]]],
         "hp_mult": 2.0, "reward_mult": 2.5, "music": "hollow", "snow": false,
         "floor": [0.6, 0.55, 0.85], "ambient": [0.5, 0.46, 0.72], "banner": "wall_banner_blue", "rune": [0.78, 0.6, 1.0],
         "shrine_title": "THE LAST SHRINE", "shrine": ["Pact of Gold", "Pact of Blood", "Pact of Peace"],
@@ -78,6 +78,16 @@ const DEATH_LINES = [
 
 var L = {}
 var reck_ids = ["restore", "bind", "release"]
+var room_damage = 0
+var plan = []
+var champion_done = false
+var merchant_gifts = []
+var merchant_sold = []
+var bounty = null
+var bounty_progress = {}
+var bounty_done = false
+var bounty_label = null
+var run_time = 0.0
 var dust = null
 var pillars = []
 var pillar_kinds = []
@@ -144,19 +154,25 @@ func _ready():
     player.set_camera_limits(ARENA)
     player.connect("hp_changed", self, "_on_hp_changed")
     player.connect("died", self, "_on_player_died")
+    player.connect("parried", self, "_on_parry")
+    bounty = Game.bounty_def(Game.data["bounty"])
     _build_hud()
     pause_menu = PauseScript.new()
     pause_menu.mode = "run"
     add_child(pause_menu)
     pause_menu.connect("abandon", self, "_on_abandon")
     _on_hp_changed(player.hp, player.max_hp)
+    plan = ROOM_PLAN.duplicate()
+    if randf() < 0.5:
+        plan[3] = "merchant"
     _enter_room(0, "gift")
 
 # ---------- world ----------
 
 func _enter_room(i, reward):
     room_index = i
-    room_type = ROOM_PLAN[i]
+    room_type = plan[i]
+    champion_done = false
     room_reward = reward
     pillars = []
     pillar_kinds = []
@@ -185,12 +201,13 @@ func _enter_room(i, reward):
     player.can_attack = false
     state = "intro"
     wave_timer = 1.0
+    room_damage = 0
     update()
     _update_labels()
     if room_type == "boss":
         _show_message(L["rooms"][i] + "\n" + L["boss_name"], 2.2)
     else:
-        var msg = "%s\nRoom %d / %d: %s" % [L["name"], i + 1, ROOM_PLAN.size(), L["rooms"][i]]
+        var msg = "%s\nRoom %d / %d: %s" % [L["name"], i + 1, plan.size(), _room_name(i)]
         if i == 0 and int(Game.data["runs"]) <= 1:
             _show_message(msg + "\n\nWASD move   |   Click or J attack   |   Space dash", 5.0)
         else:
@@ -263,6 +280,10 @@ func _set_deco():
         items.append({"name": "wall_fountain_top", "pos": Vector2(c * TILE, 0), "anchor": "topleft"})
         items.append({"name": mid, "pos": Vector2(c * TILE, TILE), "anchor": "topleft", "fps": 5.0})
         items.append({"name": basin, "pos": Vector2(c * TILE, 2 * TILE), "anchor": "topleft", "fps": 5.0})
+    if room_type == "merchant":
+        items.append({"name": "wizard_f_idle_anim", "pos": Vector2(816, 430), "scale": 3.5, "fps": 5.0, "mod": Color(1.0, 0.85, 0.5)})
+        items.append({"name": "chest_full_open_anim_f0", "pos": Vector2(900, 440), "scale": 3.0})
+        items.append({"name": "chest_full_open_anim_f0", "pos": Vector2(730, 440), "scale": 3.0})
     deco.items = items
 
 func _draw():
@@ -272,7 +293,7 @@ func _draw():
     if room_type == "elite":
         tint = Color(base.r * 1.0, base.g * 0.88, base.b * 1.08)
         banner = "wall_banner_green"
-    elif room_type == "shrine":
+    elif room_type == "shrine" or room_type == "merchant":
         tint = Color(base.r * 0.9, base.g * 0.96, base.b * 1.1)
         banner = "wall_banner_blue"
     elif room_type == "boss":
@@ -382,6 +403,7 @@ func _build_hud():
     stat_label = FX.label(ui_layer, Vector2(24, 106), "", 16, Color(0.8, 0.95, 1.0))
     _icon("coin_anim_f0", Vector2(24, 132), 24.0)
     echo_label = FX.label(ui_layer, Vector2(54, 132), "", 16, Color(1.0, 0.9, 0.5))
+    bounty_label = FX.label(ui_layer, Vector2(24, 160), "", 14, Color(0.95, 0.75, 0.4))
     gifts_label = FX.label(ui_layer, Vector2(24, 500), "", 14, Color(0.95, 0.85, 0.5))
     var hint = FX.label(ui_layer, Vector2(24, 692), "WASD move | SPACE dash | Click/J attack (swats bolts) | Esc pause", 14, Color(1, 1, 1, 0.6))
     message_label = FX.label(ui_layer, Vector2(0, 230), "", 30, Color(1, 0.95, 0.8), true)
@@ -414,6 +436,37 @@ func _build_hud():
     fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
     ui_layer.add_child(fade)
 
+func _on_parry():
+    _bounty_add("parries", 1)
+
+func _bounty_add(stat, n):
+    if bounty == null or bounty_done or bounty["stat"] != stat:
+        return
+    bounty_progress[stat] = int(bounty_progress.get(stat, 0)) + n
+    _bounty_check()
+
+func _bounty_set(stat, value):
+    if bounty == null or bounty_done or bounty["stat"] != stat:
+        return
+    bounty_progress[stat] = value
+    _bounty_check()
+
+func _bounty_check():
+    var got = int(bounty_progress.get(bounty["stat"], 0))
+    if got >= bounty["goal"]:
+        bounty_done = true
+        var e = int(round(bounty["echoes"] * Game.echo_mult()))
+        run_echoes += e
+        run_xp += bounty["xp"]
+        Game.data["bounties_done"] = int(Game.data["bounties_done"]) + 1
+        if Game.data["bounties_done"] >= 5:
+            Game.unlock("contractor")
+        Toast.push("Contract complete", "%s\n+%d Echoes, +%d XP" % [bounty["name"], e, bounty["xp"]])
+        Sfx.play("pickup")
+        _update_labels()
+    else:
+        _update_labels()
+
 func _icon(frame, pos, size):
     var tex = Art.atlas_texture(frame)
     if tex == null:
@@ -435,14 +488,20 @@ func _show_message(text, seconds):
 func _on_hp_changed(hp, max_hp):
     if last_hp >= 0 and hp < last_hp:
         hurt_alpha = 0.45
+        room_damage += last_hp - hp
     last_hp = hp
     hp_fill.rect_size.x = 260.0 * clamp(float(hp) / float(max_hp), 0.0, 1.0)
     hp_label.text = "HP  %d / %d" % [max(hp, 0), max_hp]
 
 func _update_labels():
-    room_label.text = "Room %d / %d" % [room_index + 1, ROOM_PLAN.size()]
+    room_label.text = "Room %d / %d" % [room_index + 1, plan.size()] + (("   Ascension %d" % Game.selected_ascension) if Game.selected_ascension > 0 else "")
     stat_label.text = "Kills %d" % run_kills
     echo_label.text = "Echoes %d" % run_echoes
+    if bounty != null and bounty_label != null:
+        if bounty_done:
+            bounty_label.text = "Contract done: " + bounty["name"]
+        else:
+            bounty_label.text = "Contract: %s  %d / %d" % [bounty["name"], int(bounty_progress.get(bounty["stat"], 0)), bounty["goal"]]
     var counts = {}
     var order = []
     for g in gifts_taken:
@@ -461,6 +520,8 @@ func _update_labels():
 
 func _process(delta):
     clock += delta
+    if not run_over:
+        run_time += delta
     hurt_alpha = max(0.0, hurt_alpha - delta * 1.6)
     var pulse = 0.0
     if player != null and player.alive and player.hp <= player.max_hp * 0.25:
@@ -488,12 +549,20 @@ func _process(delta):
         if Input.is_action_just_pressed("interact") and not run_over:
             _end_run("win" if state == "ended" else "death")
 
+func _room_name(i):
+    if plan[i] == "merchant":
+        return "The Wandering Merchant"
+    return L["rooms"][i]
+
 func _start_room():
     if room_type == "shrine":
         _open_shrine()
         return
+    if room_type == "merchant":
+        _open_merchant()
+        return
     state = "fighting"
-    var scale = (1.0 + 0.08 * room_index) * L["hp_mult"]
+    var scale = (1.0 + 0.08 * room_index) * L["hp_mult"] * Game.asc_hp()
     for group in L["enemies"][room_index]:
         for i in range(group[1]):
             _spawn_enemy(group[0], scale)
@@ -518,10 +587,21 @@ func _spawn_enemy(kind, scale = 1.0):
         e.position = _random_spawn()
         e.hp_mult = scale
         e.theme = L["theme"]
-        e.connect("died", self, "_on_enemy_died", [kind])
+        e.connect("died", self, "_on_enemy_died", [kind, e])
     e.setup(kind, player)
+    e.speed *= Game.asc_speed()
+    e.contact_damage = int(round(e.contact_damage * Game.asc_damage()))
+    if kind == "warden" or kind == "jarl" or kind == "lord" or kind == "hollow":
+        e.hp = int(e.hp * Game.asc_hp())
+        e.max_hp = int(e.hp)
+        e.hp_max = e.hp
+    elif room_type == "elite" and not champion_done and kind != "wisp" and kind != "bomber":
+        champion_done = true
+        e.make_champion(["frenzied", "armored", "volatile"][randi() % 3])
     alive_enemies += 1
     add_child(e)
+    if e.champion != "":
+        FX.popup(e.global_position + Vector2(0, -70), "CHAMPION: " + e.champion.capitalize(), Color(1.0, 0.85, 0.3), 22)
 
 func _random_spawn():
     for i in range(30):
@@ -536,7 +616,7 @@ func _random_spawn():
 
 func _on_summon(kind, count):
     for i in range(count):
-        _spawn_enemy(kind, 1.0)
+        _spawn_enemy(kind, L["hp_mult"] * Game.asc_hp())
 
 func _echo_for(kind):
     var base = 3
@@ -544,6 +624,10 @@ func _echo_for(kind):
         base = 4
     elif kind == "charger":
         base = 5
+    elif kind == "bomber":
+        base = 4
+    elif kind == "guardian":
+        base = 9
     elif kind == "brute":
         base = 8
     elif kind == "warden":
@@ -554,7 +638,7 @@ func _echo_for(kind):
         base = 120
     elif kind == "hollow":
         base = 220
-    return int(round(base * Game.echo_mult() * L["reward_mult"]))
+    return int(round(base * Game.echo_mult() * L["reward_mult"] * Game.asc_reward() * (1.0 + player.echo_bonus)))
 
 func _xp_for(kind):
     var base = 5
@@ -562,6 +646,10 @@ func _xp_for(kind):
         base = 7
     elif kind == "charger":
         base = 8
+    elif kind == "bomber":
+        base = 6
+    elif kind == "guardian":
+        base = 12
     elif kind == "brute":
         base = 14
     elif kind == "warden":
@@ -572,13 +660,23 @@ func _xp_for(kind):
         base = 180
     elif kind == "hollow":
         base = 300
-    return int(round(base * L["reward_mult"]))
+    return int(round(base * L["reward_mult"] * Game.asc_reward()))
 
-func _on_enemy_died(kind):
+func _on_enemy_died(kind, e = null):
+    Game.unlock("first_blood")
+    _bounty_add("kills", 1)
+    if kind == "charger":
+        _bounty_add("chargers", 1)
+    elif kind == "brute":
+        _bounty_add("brutes", 1)
     alive_enemies -= 1
     run_kills += 1
-    run_echoes += _echo_for(kind)
-    run_xp += _xp_for(kind)
+    var mult = 1
+    if e != null and is_instance_valid(e) and e.champion != "":
+        mult = 3
+        Toast.push("Champion slain", "Triple rewards!")
+    run_echoes += _echo_for(kind) * mult
+    run_xp += _xp_for(kind) * mult
     player.on_kill()
     _update_labels()
     if alive_enemies <= 0 and state == "fighting":
@@ -648,6 +746,9 @@ func _clear_hazards():
 
 func _room_cleared():
     _clear_hazards()
+    if room_damage == 0:
+        Game.unlock("clean_room")
+        _bounty_add("clean_rooms", 1)
     rooms_cleared += 1
     var xp_room = 20
     run_xp += xp_room
@@ -668,10 +769,10 @@ func _room_cleared():
 
 func _open_doors():
     var nxt = room_index + 1
-    if nxt >= ROOM_PLAN.size():
+    if nxt >= plan.size():
         return
     state = "doors"
-    var t = ROOM_PLAN[nxt]
+    var t = plan[nxt]
     if t == "combat" or t == "elite":
         var rewards = ["gift", "echoes", "heal"]
         rewards.shuffle()
@@ -679,14 +780,14 @@ func _open_doors():
         for i in range(2):
             var d = DoorScript.new()
             d.reward = rewards[i]
-            d.label_text = L["rooms"][nxt] + "\n" + ("Elite: " if t == "elite" else "") + REWARD_NAMES[rewards[i]]
+            d.label_text = _room_name(nxt) + "\n" + ("Elite: " if t == "elite" else "") + REWARD_NAMES[rewards[i]]
             d.position = Vector2(xs[i], 128)
             add_child(d)
             doors.append(d)
     else:
         var d2 = DoorScript.new()
-        d2.reward = "shrine" if t == "shrine" else "boss"
-        d2.label_text = L["rooms"][nxt]
+        d2.reward = "shrine" if (t == "shrine" or t == "merchant") else "boss"
+        d2.label_text = _room_name(nxt)
         d2.position = Vector2(816, 128)
         add_child(d2)
         doors.append(d2)
@@ -698,7 +799,7 @@ func _take_door(d):
     Sfx.play("door")
     var rw = d.reward
     var next_room = room_index + 1
-    if next_room >= ROOM_PLAN.size():
+    if next_room >= plan.size():
         state = "ended"
         return
     var tw = Tween.new()
@@ -732,6 +833,74 @@ func _show_cards(mode, title, sub, opts):
     card.setup(title, sub, opts)
     card.connect("picked", self, "_pick")
 
+func _take_gift(opt):
+    player.apply_gift(opt["id"], opt["mult"])
+    gifts_taken.append({"name": opt["name"], "tag": opt["tag"]})
+    _bounty_set("gifts", gifts_taken.size())
+    if gifts_taken.size() >= 8:
+        Game.unlock("collector")
+    if opt.get("rarity", "") == "epic":
+        Game.unlock("epic_find")
+    FX.popup(player.global_position, opt["name"], opt["tag_color"], 22)
+    _update_labels()
+
+# ---------- the wandering merchant ----------
+
+func _open_merchant():
+    state = "shrine"
+    merchant_gifts = [GiftsScript.roll_one("rare"), GiftsScript.roll_one("epic")]
+    merchant_sold = [false, false, false]
+    card_mode = "merchant"
+    card = CardUIScript.new()
+    ui_layer.add_child(card)
+    card.setup("THE WANDERING MERCHANT", "Merchant: \"Echoes for power, friend? Spend what you carry.\"", _merchant_options(), false, "Echoes: %d" % run_echoes)
+    card.connect("picked", self, "_merchant_pick")
+    _show_message("A merchant waits in the dark.", 1.6)
+
+func _merchant_costs():
+    return [70, 150, 45, 0]
+
+func _merchant_options():
+    var costs = _merchant_costs()
+    var out = []
+    for i in range(2):
+        var g = merchant_gifts[i]
+        var sold = merchant_sold[i]
+        out.append({"name": g["name"], "tag": g["tag"] + " Gift", "tag_color": g["tag_color"], "border": g["border"], "desc": g["desc"],
+            "foot": "SOLD" if sold else "Cost: %d Echoes" % costs[i], "disabled": sold or run_echoes < costs[i]})
+    var sold_h = merchant_sold[2]
+    out.append({"name": "Full Mending", "tag": "Healing", "tag_color": Color(0.5, 1.0, 0.6), "border": Color(0.4, 0.9, 0.5),
+        "desc": "Restore all of your HP.", "foot": "SOLD" if sold_h else "Cost: %d Echoes" % costs[2], "disabled": sold_h or run_echoes < costs[2] or player.hp >= player.max_hp})
+    out.append({"name": "Leave", "tag": "Move on", "tag_color": Color(0.8, 0.8, 0.9), "border": Color(0.5, 0.5, 0.6),
+        "desc": "Keep your remaining Echoes and take the next door.", "foot": ""})
+    return out
+
+func _merchant_pick(i):
+    if card == null:
+        return
+    if i == 3:
+        card.queue_free()
+        card = null
+        Sfx.play("close")
+        rooms_cleared += 1
+        _open_doors()
+        return
+    var cost = _merchant_costs()[i]
+    if run_echoes < cost or merchant_sold[i]:
+        Sfx.play("error")
+        return
+    run_echoes -= cost
+    Sfx.play("pickup")
+    if i < 2:
+        _take_gift(merchant_gifts[i])
+    else:
+        player.heal(player.max_hp)
+    merchant_sold[i] = true
+    _update_labels()
+    card.options = _merchant_options()
+    card.extra_text = "Echoes: %d" % run_echoes
+    card.rebuild()
+
 func _pick(i):
     if card == null:
         return
@@ -740,10 +909,7 @@ func _pick(i):
     card = null
     Sfx.play("pickup")
     if card_mode == "gift":
-        player.apply_gift(opt["id"], opt["mult"])
-        gifts_taken.append({"name": opt["name"], "tag": opt["tag"]})
-        FX.popup(player.global_position, opt["name"], opt["tag_color"], 22)
-        _update_labels()
+        _take_gift(opt)
         _open_doors()
     elif card_mode == "shrine":
         rooms_cleared += 1
@@ -842,6 +1008,8 @@ func _on_abandon():
 
 func _end_run(result):
     run_over = true
+    Game.data["bounty"] = ""
+    Game.run_seconds = run_time
     Game.finish_run(result, rooms_cleared, run_kills, run_echoes, run_xp, Game.selected_line)
     if Game.pending_ending != "":
         Game.goto("res://scenes/Ending.tscn")

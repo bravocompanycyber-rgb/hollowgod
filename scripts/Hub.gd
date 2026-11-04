@@ -28,6 +28,8 @@ var current_npc = ""
 var current_key = ""
 var nearest = null
 var clock = 0.0
+var card_bounties = []
+var hud_bounty = null
 var deco = null
 
 func _ready():
@@ -53,6 +55,7 @@ func _ready():
     add_child(ui_layer)
     FX.add_vignette(ui_layer)
     hud_level = FX.label(ui_layer, Vector2(24, 20), "", 20, Color(0.95, 0.8, 0.4), true)
+    hud_bounty = FX.label(ui_layer, Vector2(24, 70), "", 14, Color(0.95, 0.75, 0.4))
     hud_xp = ColorRect.new()
     hud_xp.rect_position = Vector2(24, 52)
     hud_xp.rect_size = Vector2(200, 8)
@@ -78,6 +81,9 @@ func _ready():
         _show_summary()
 
 func _update_hud():
+    var cb = Game.bounty_def(Game.data["bounty"])
+    if hud_bounty != null:
+        hud_bounty.text = ("Contract: " + cb["name"] + " (" + cb["desc"] + ")") if cb != null else ""
     hud_level.text = "Keeper Level %d      Echoes %d" % [Game.data["level"], Game.data["echoes"]]
     hud_xp.rect_size.x = 200.0 * clamp(float(Game.data["xp"]) / float(Game.xp_to_next()), 0.0, 1.0)
 
@@ -274,6 +280,10 @@ func _on_dialogue_done(choice_id):
         _open_shop()
     elif res == "ledger":
         _open_ledger()
+    elif res == "ach":
+        _open_achievements()
+    elif res == "bounty":
+        _open_bounties()
 
 func _open_card(mode, title, sub, opts, can_close = false, extra = ""):
     Sfx.play("open")
@@ -301,14 +311,59 @@ func _on_card_picked(i):
         if not Game.line_open(line):
             Sfx.play("error")
             return
-        _close_card()
         Game.selected_line = line
+        if int(Game.data["ascension_max"]) > 0:
+            _close_card()
+            _open_ascension()
+            return
+        _close_card()
+        Game.selected_ascension = 0
+        Sfx.play("door")
+        Game.goto("res://scenes/Run.tscn")
+    elif card_mode == "bounty":
+        Game.data["bounty"] = card_bounties[i]["id"]
+        Game.save()
+        Sfx.play("pickup")
+        FX.popup(player.global_position, "Contract: " + card_bounties[i]["name"], Color(1.0, 0.85, 0.4), 20)
+        _close_card()
+    elif card_mode == "asc":
+        Game.selected_ascension = i
+        _close_card()
         Sfx.play("door")
         Game.goto("res://scenes/Run.tscn")
     elif card_mode == "shop":
         _buy(i)
     else:
         _close_card()
+
+func _open_ascension():
+    var opts = []
+    for i in range(int(Game.data["ascension_max"]) + 1):
+        if i == 0:
+            opts.append({"name": "Normal", "tag": "No extra heat", "tag_color": Color(0.7, 0.9, 1.0), "border": Color(0.4, 0.7, 0.9), "desc": "The standard difficulty. Rewards as usual."})
+        else:
+            opts.append({"name": "Ascension %d" % i, "tag": "Heat +%d" % i, "tag_color": Color(1.0, 0.6, 0.3), "border": Color(1.0, 0.5, 0.2),
+                "desc": "Enemies have +%d%% HP, move %d%% faster and hit %d%% harder.\nYou earn +%d%% Echoes and XP." % [20 * i, 4 * i, 10 * i, 25 * i]})
+    _open_card("asc", "CHOOSE YOUR HEAT", "Clear a Line on your highest Ascension to unlock the next one (up to 5).", opts, true)
+
+func _open_bounties():
+    var opts = []
+    for b in Game.random_bounties(3):
+        opts.append({"name": b["name"], "tag": "Contract", "tag_color": Color(1.0, 0.8, 0.4), "border": Color(0.95, 0.75, 0.35),
+            "desc": b["desc"] + "\nFinish it during your next run.", "foot": "Reward: %d Echoes, %d XP" % [b["echoes"], b["xp"]]})
+    var sub_text = "Mara: \"Pick one. Finish it down there and I pay you.\""
+    var cur = Game.bounty_def(Game.data["bounty"])
+    if cur != null:
+        sub_text = "Active contract: %s. Picking a new one replaces it." % cur["name"]
+    card_bounties = Game.random_bounties(3)
+    _open_card("bounty", "MARA'S CONTRACTS", sub_text, opts, true)
+
+func _open_achievements():
+    card_mode = "ach"
+    var panel = load("res://scripts/AchievementsPanel.gd").new()
+    ui_layer.add_child(panel)
+    card = panel
+    panel.connect("closed", self, "_close_card")
 
 func _open_gate():
     Sfx.play("click")
@@ -337,6 +392,8 @@ func _show_summary():
     var title = "YOU RETURN TO THE TERMINUS"
     var sub = "A victory over the Warden." if r["result"] == "win" else ("You withdrew." if r["result"] == "abandon" else "You were pulled back from death.")
     var desc = "Rooms cleared: %d\nEnemies slain: %d\nEchoes gained: +%d\nXP gained: +%d" % [r["rooms"], r["kills"], r["echoes"], r["xp"]]
+    if r.get("note", "") != "":
+        desc += "\n\n" + r["note"]
     if r["levels"] > 0:
         desc += "\n\nKEEPER LEVEL UP!  Now level %d\n(+5 max HP, +2%% attack damage per level)" % r["level"]
         Sfx.play("levelup")
@@ -367,8 +424,8 @@ func _open_ledger():
         wn = "Bound"
     elif d["warden"] == "release":
         wn = "Released"
-    var desc = "Keeper Level %d    (XP %d / %d)\nRuns: %d     Deaths: %d     Victories: %d\nTotal kills: %d     Deepest room: %d / 5\n\nThe Jackal Warden: %s     The Frost Jarl: %s     The Lord of Mictlan: %s\nThe Hollow: %s     Endings found: %d / 6%s\nLines cleared: Sunken Hall x%d, Rime Road x%d, Obsidian Road x%d\nBond with Mara Voss: %d\nSecond Wind (Jonah's lighter): %s" % [
-        d["level"], d["xp"], Game.xp_to_next(), d["runs"], d["deaths"], d["wins"], d["kills_total"], d["best_room"], wn, _choice_name(d["jarl"]), _choice_name(d["lord"]), _choice_name(d["hollow"]), Game.endings_found(), _ending_list(d), int(d["cleared"].get("sunken", 0)), int(d["cleared"].get("rime", 0)), int(d["cleared"].get("obsidian", 0)), Game.bond("mara"),
+    var desc = "Keeper Level %d    (XP %d / %d)\nRuns: %d     Deaths: %d     Victories: %d\nTotal kills: %d     Deepest room: %d / 5\n\nThe Jackal Warden: %s     The Frost Jarl: %s     The Lord of Mictlan: %s\nThe Hollow: %s     Endings found: %d / 6%s\nHighest Ascension unlocked: %d     Achievements: %d / %d\nLines cleared: Sunken Hall x%d, Rime Road x%d, Obsidian Road x%d\nBond with Mara Voss: %d\nSecond Wind (Jonah's lighter): %s" % [
+        d["level"], d["xp"], Game.xp_to_next(), d["runs"], d["deaths"], d["wins"], d["kills_total"], d["best_room"], wn, _choice_name(d["jarl"]), _choice_name(d["lord"]), _choice_name(d["hollow"]), Game.endings_found(), _ending_list(d), int(d["ascension_max"]), d["achievements"].keys().size(), Game.ACHIEVEMENTS.size(), int(d["cleared"].get("sunken", 0)), int(d["cleared"].get("rime", 0)), int(d["cleared"].get("obsidian", 0)), Game.bond("mara"),
         "Yes" if Game.has_flag("second_wind") else "Not yet"]
     var opts = [{"name": "The Pantheon Ledger", "tag": "Sable's record of you", "tag_color": Color(0.7, 0.82, 1.0), "desc": desc, "border": Color(0.7, 0.82, 1.0)}]
     _open_card("ledger", "THE LEDGER", "Every choice is written down.", opts, true)
@@ -404,6 +461,9 @@ func _buy(i):
         return
     Game.data["echoes"] -= cost
     Game.data["forge"][f["id"]] = lv + 1
+    Game.unlock("smith")
+    if lv + 1 >= f["max"]:
+        Game.unlock("master_smith")
     Game.save()
     Sfx.play("pickup")
     FX.popup(player.global_position, f["name"] + " Lv" + str(lv + 1), Color(1.0, 0.8, 0.4), 20)

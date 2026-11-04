@@ -38,6 +38,25 @@ func _ready():
     _add_button("pick3", 15)
     _add_button("pick4", 13)
 
+const DEFAULTS = {
+    "move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT], "move_up": [KEY_W, KEY_UP], "move_down": [KEY_S, KEY_DOWN],
+    "dash": [KEY_SPACE, KEY_SHIFT], "attack": [KEY_J], "interact": [KEY_E, KEY_ENTER, KEY_KP_ENTER]
+}
+
+# Applies the player's custom keys (or the defaults) to the keyboard part of each action.
+func apply_keys():
+    for a in DEFAULTS.keys():
+        for ev in InputMap.get_action_list(a):
+            if ev is InputEventKey:
+                InputMap.action_erase_event(a, ev)
+        var keys = DEFAULTS[a]
+        if Game.settings["keys"].has(a):
+            keys = [int(Game.settings["keys"][a])]
+        for k in keys:
+            var e = InputEventKey.new()
+            e.scancode = k
+            InputMap.action_add_event(a, e)
+
 func _add_action(action):
     if not InputMap.has_action(action):
         InputMap.add_action(action)

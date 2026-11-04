@@ -39,6 +39,15 @@ func _ready():
     music_streams["rime"] = _drone([73.5, 110.25, 147.0, 220.5])
     music_streams["obsidian"] = _drone([61.75, 92.625, 123.5, 185.25])
     music_streams["hollow"] = _drone([49.0, 69.5, 103.0, 155.5])
+    # Original music loops (made with tools/make_music.py) replace the simple drones
+    var files = {"hub": "music_hub", "run": "music_sunken", "rime": "music_rime", "obsidian": "music_obsidian", "hollow": "music_hollow"}
+    for k in files.keys():
+        var st = _load_wav("res://assets/audio/" + files[k] + ".wav")
+        if st != null:
+            st.loop_mode = AudioStreamSample.LOOP_FORWARD
+            st.loop_begin = 0
+            st.loop_end = int(st.data.size() / 2)
+            music_streams[k] = st
     Game.apply_settings()
 
 func play(name, vol = 0.0, pitch = 1.0):

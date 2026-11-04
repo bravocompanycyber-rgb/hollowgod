@@ -129,13 +129,13 @@ static func _mara(d):
         [["mara", "I keep a list of the missing. It gets longer."]],
         [["mara", "If you see a grey coat, ask him about the lunch."]],
         [["mara", "You look tired. Dead people shouldn't look tired."]]]
-    return {"key": "mara_idle", "lines": _pick(idle, d), "choices": []}
+    return {"key": "mara_idle", "lines": _pick(idle, d), "choices": [{"id": "bounty", "text": "Got any work for me?"}, {"id": "leave", "text": "Not now."}]}
 
 static func Game_bond(d):
     return int(d["bonds"].get("mara", 0))
 
 static func _sable(d):
-    var ch = [{"id": "ledger", "text": "Show me the Ledger."}, {"id": "leave", "text": "Not now."}]
+    var ch = [{"id": "ledger", "text": "Show me the Ledger."}, {"id": "ach", "text": "Show me my achievements."}, {"id": "leave", "text": "Not now."}]
     if not _seen(d, "sable_intro"):
         return {"key": "sable_intro", "lines": [
             ["sable", "Sable. Archivist. Dead, but employed."],

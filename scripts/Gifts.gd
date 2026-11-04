@@ -13,7 +13,13 @@ const LIST = [
     {"id": "shock", "name": "Thunder Step"},
     {"id": "quick", "name": "Quick Hands"},
     {"id": "guard", "name": "Aegis of the Dead"},
-    {"id": "crit", "name": "Jackal's Mark"}
+    {"id": "crit", "name": "Jackal's Mark"},
+    {"id": "burn", "name": "Ember Brand"},
+    {"id": "chain", "name": "Chain Lightning"},
+    {"id": "thorns", "name": "Thorned Mantle"},
+    {"id": "fortune", "name": "Gilded Touch"},
+    {"id": "regen", "name": "Lamplight Blessing"},
+    {"id": "execute", "name": "Executioner's Eye"}
 ]
 
 static func rarity_name(rk):
@@ -58,6 +64,18 @@ static func describe(id, m):
         return "You take %d%% less damage from all sources.\nStacks, up to 60%%." % int(8 * m)
     if id == "crit":
         return "%d%% chance to land a critical hit for double damage.\nStacks, up to 80%%." % int(10 * m)
+    if id == "burn":
+        return "Your hits set enemies ablaze, dealing %d%% of the hit over 1.5 seconds.\nStacks." % int(25 * m)
+    if id == "chain":
+        return "%d%% chance for a hit to arc lightning to a nearby enemy for 60%% damage.\nStacks, up to 70%%." % int(20 * m)
+    if id == "thorns":
+        return "Enemies that hurt you take %d%% of that damage back.\nStacks." % int(30 * m)
+    if id == "fortune":
+        return "You earn %d%% more Echoes during this run.\nStacks." % int(25 * m)
+    if id == "regen":
+        return "Regenerate %.1f HP every second.\nStacks." % (0.4 * m)
+    if id == "execute":
+        return "Deal %d%% more damage to enemies below 30%% health.\nStacks." % int(50 * m)
     return ""
 
 static func roll_rarity():
@@ -68,14 +86,20 @@ static func roll_rarity():
         return "rare"
     return "common"
 
+static func _make(g, rk):
+    var m = rarity_mult(rk)
+    return {"id": g["id"], "name": g["name"], "tag": rarity_name(rk), "tag_color": rarity_color(rk),
+        "border": rarity_color(rk), "mult": m, "rarity": rk, "desc": describe(g["id"], m)}
+
+static func roll_one(rk):
+    var pool = LIST.duplicate()
+    pool.shuffle()
+    return _make(pool[0], rk)
+
 static func random_choices(count):
     var pool = LIST.duplicate()
     pool.shuffle()
     var out = []
     for i in range(int(min(count, pool.size()))):
-        var g = pool[i]
-        var rk = roll_rarity()
-        var m = rarity_mult(rk)
-        out.append({"id": g["id"], "name": g["name"], "tag": rarity_name(rk), "tag_color": rarity_color(rk),
-            "border": rarity_color(rk), "mult": m, "rarity": rk, "desc": describe(g["id"], m)})
+        out.append(_make(pool[i], roll_rarity()))
     return out

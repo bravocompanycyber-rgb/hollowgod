@@ -52,7 +52,7 @@ const DATA = {
     }
 }
 
-const CREDITS = "H O L L O W G O D\n\n\nA game by\nB R A V O C O M P A N Y C Y B E R\n\n\nA game of descents and choices\n\n\nART\nDungeonTileset II by Robert (0x72)\nCC0 public domain\n\n\nINTERFACE SOUNDS\nKenney (kenney.nl)\nCC0 public domain\n\n\nFONTS\nDejaVu Sans and DejaVu Serif Bold\n\n\nBUILT WITH\nGodot Engine 3.5\n\n\nDESIGN, STORY AND CODE\nBravocompanycyber\n\n\nThank you for playing."
+const CREDITS = "H O L L O W G O D\n\n\nA game by\nB R A V O C O M P A N Y C Y B E R\n\n\nA game of descents and choices\n\n\nART\nDungeonTileset II by Robert (0x72)\nCC0 public domain\n\n\nMUSIC\nBravocompanycyber\n\n\nINTERFACE SOUNDS\nKenney (kenney.nl)\nCC0 public domain\n\n\nFONTS\nDejaVu Sans and DejaVu Serif Bold\n\n\nBUILT WITH\nGodot Engine 3.5\n\n\nDESIGN, STORY AND CODE\nBravocompanycyber\n\n\nThank you for playing."
 
 var ending = "The Keeper"
 var pages = []

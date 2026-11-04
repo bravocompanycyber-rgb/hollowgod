@@ -64,7 +64,9 @@ func _ready():
 func _input(event):
     if event.is_action_pressed("pause") and enabled:
         get_tree().set_input_as_handled()
-        if shown and options.visible:
+        if shown and options.visible and options.controls != null and options.controls.visible:
+            pass
+        elif shown and options.visible:
             options._close()
         elif shown and controls_label.visible:
             _show_controls(false)

@@ -1,4 +1,4 @@
-HOLLOWGOD  (Prototype 0.7)
+HOLLOWGOD  (Prototype 0.9)
 A dark-fantasy action roguelite by Bravocompanycyber.
 
 HOW TO PLAY

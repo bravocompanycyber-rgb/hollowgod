@@ -3,6 +3,7 @@ extends KinematicBody2D
 # In the Terminus hub, combat = false (no fighting, walking only).
 
 signal died
+signal parried
 signal hp_changed(hp, max_hp)
 
 const RADIUS = 13.0
@@ -33,6 +34,14 @@ var shock_pct = 0.0
 var lifesteal_hp = 0.0
 var kills_for_heal = 0
 var second_wind = false
+var burn_pct = 0.0
+var chain_chance = 0.0
+var thorns_pct = 0.0
+var regen_rate = 0.0
+var regen_acc = 0.0
+var exec_bonus = 0.0
+var echo_bonus = 0.0
+var bolts = []
 
 var alive = true
 var velocity = Vector2.ZERO
@@ -101,8 +110,10 @@ func set_camera_limits(rect):
 func attack_damage():
     return damage_base * dmg_mult * (1.0 + gift_dmg)
 
-func roll_damage():
+func roll_damage(target = null):
     var d = attack_damage()
+    if target != null and exec_bonus > 0.0 and is_instance_valid(target) and target.hp < target.hp_max * 0.3:
+        d *= 1.0 + exec_bonus
     var crit = randf() < crit_chance
     if crit:
         d *= crit_mult
@@ -133,6 +144,18 @@ func apply_gift(id, m):
         guard = min(0.6, guard + 0.08 * m)
     elif id == "crit":
         crit_chance = min(0.8, crit_chance + 0.10 * m)
+    elif id == "burn":
+        burn_pct += 0.25 * m
+    elif id == "chain":
+        chain_chance = min(0.7, chain_chance + 0.2 * m)
+    elif id == "thorns":
+        thorns_pct += 0.3 * m
+    elif id == "fortune":
+        echo_bonus += 0.25 * m
+    elif id == "regen":
+        regen_rate += 0.4 * m
+    elif id == "execute":
+        exec_bonus += 0.5 * m
 
 func heal(n):
     n = int(n)
@@ -156,6 +179,16 @@ func _physics_process(delta):
     if not alive:
         return
     dash_cooldown_left = max(0.0, dash_cooldown_left - delta)
+    if regen_rate > 0.0 and hp < max_hp:
+        regen_acc += regen_rate * delta
+        if regen_acc >= 1.0:
+            regen_acc -= 1.0
+            hp = int(min(max_hp, hp + 1))
+            emit_signal("hp_changed", hp, max_hp)
+    for b in bolts:
+        b[2] -= delta
+    while bolts.size() > 0 and bolts[0][2] <= 0.0:
+        bolts.pop_front()
     attack_cooldown_left = max(0.0, attack_cooldown_left - delta)
     attack_vis = max(0.0, attack_vis - delta)
     invuln = max(0.0, invuln - delta)
@@ -232,6 +265,25 @@ func _update_aim(input):
         elif input.length() > 0.1:
             facing = input.normalized()
 
+func _on_hit_enemy(e, dmg):
+    if not is_instance_valid(e) or e.dead:
+        return
+    if burn_pct > 0.0:
+        e.ignite(dmg * burn_pct)
+    if chain_chance > 0.0 and randf() < chain_chance:
+        var best = null
+        var bd = 240.0
+        for t in get_tree().get_nodes_in_group("enemies"):
+            if is_instance_valid(t) and t != e and not t.dead and not t.spawning:
+                var d = t.global_position.distance_to(e.global_position)
+                if d < bd:
+                    bd = d
+                    best = t
+        if best != null:
+            bolts.append([e.global_position, best.global_position, 0.18])
+            FX.burst(best.global_position, Color(0.6, 0.85, 1.0), 8, 140.0)
+            best.take_hit(dmg * 0.6, (best.global_position - e.global_position).normalized(), false)
+
 func _dash_shock():
     for e in get_tree().get_nodes_in_group("enemies"):
         if not is_instance_valid(e) or e.dead or e.spawning or dash_hit.has(e):
@@ -253,8 +305,9 @@ func _attack():
         var to_e = e.global_position - global_position
         if to_e.length() <= attack_range + e.radius:
             if abs(facing.angle_to(to_e)) <= attack_arc / 2.0 or to_e.length() < e.radius + 14.0:
-                var r = roll_damage()
+                var r = roll_damage(e)
                 e.take_hit(r[0], to_e.normalized(), r[1])
+                _on_hit_enemy(e, r[0])
                 hit_any = true
     for p in get_tree().get_nodes_in_group("projectiles"):
         if not is_instance_valid(p):
@@ -264,6 +317,10 @@ func _attack():
             FX.burst(p.global_position, Color(1, 1, 1), 8, 120.0)
             FX.popup(p.global_position, "parry", Color(0.7, 0.95, 1.0), 16)
             Sfx.play("parry")
+            emit_signal("parried")
+            Game.data["parries"] = int(Game.data["parries"]) + 1
+            if Game.data["parries"] >= 25:
+                Game.unlock("deflector")
             p.queue_free()
             hit_any = true
     if hit_any:
@@ -281,9 +338,14 @@ func take_damage(amount, from_pos):
     FX.hitstop(70)
     Sfx.play("hurt")
     FX.popup(global_position, "-" + str(amount), Color(1.0, 0.3, 0.3), 20)
+    if thorns_pct > 0.0:
+        for t in get_tree().get_nodes_in_group("enemies"):
+            if is_instance_valid(t) and not t.dead and not t.spawning and t.global_position.distance_to(from_pos) < 45.0:
+                t.take_hit(amount * thorns_pct, (t.global_position - global_position).normalized(), false)
     if hp <= 0:
         if second_wind:
             second_wind = false
+            Game.unlock("second_wind")
             hp = int(max_hp * 0.4)
             invuln = 2.5
             FX.shake(12.0)
@@ -343,6 +405,10 @@ func _draw():
             hand = Vector2(0, -12) + Vector2.RIGHT.rotated(a3) * 10.0
             rot = a3 + PI / 2.0
         Art.draw_at(self, "weapon_knight_sword", hand, rot, Art.SCALE * 0.8)
+    for b in bolts:
+        var a = clamp(b[2] / 0.18, 0.0, 1.0)
+        draw_line(to_local(b[0]), to_local(b[1]), Color(0.7, 0.9, 1.0, a), 4.0)
+        draw_line(to_local(b[0]), to_local(b[1]), Color(1, 1, 1, a), 1.5)
     # Lantern glow (so you can see where you are aiming)
     draw_circle(facing * (RADIUS + 10.0), 7.0, Color(1.0, 0.85, 0.4, 0.28))
     draw_circle(facing * (RADIUS + 10.0), 3.5, Color(1.0, 0.92, 0.55))

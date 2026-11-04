@@ -1,4 +1,4 @@
-HOLLOWGOD - Prototype 0.7 "The Hollow Update"  (Godot 3.5)
+HOLLOWGOD - Prototype 0.9 "The Challenge Update"  (Godot 3.5)
 
 SETUP (first time)
 1. Open Godot 3.5, click IMPORT, select project.godot in this folder, then "Import & Edit".
@@ -12,20 +12,18 @@ CONTROLS
 WASD move | Mouse aim | Left click or J attack (swats bolts) | Space / Shift dash
 E or Enter: talk, confirm, continue | 1-5 or click: pick a card | Esc: pause menu | F11: fullscreen
 
-WHAT'S NEW IN 0.7
-- THE FINAL LINE: THE HOLLOW (unlocks after you clear Lines One, Two and Three). New enemies' look, a three-phase final
-  boss (the Hollow, wearing the gods it swallowed), and a last choice.
-- SIX ENDINGS: The Keeper, The Usurper, The Wake, The Ferryman (balance), The Hollow Crown (bad), and a secret
-  ending, The Truth (needs Mara's lighter and all three earlier Reckonings). Ending story pages, THE END card and credits.
-- 3D LOOK: relief lighting on walls, floors, props and characters; real-time shadows from pillars and walls;
-  smoothed (anti-aliased) character sprites; squash and bounce animation.
-- CLEARER PILLARS: brighter stone, solid base and glowing borders, with contact shadows.
-- OPTIONS: "Lighting effects" switch (turn OFF on slower PCs for more speed).
-- Ledger lists the endings you have found.
+WHAT'S NEW IN 0.9
+- NEW ENEMIES: Bombers (a red fuse ring warns of the blast: kill them first or dodge out), Guardians (a glowing shield
+  blocks most front hits: dash around and strike from the side or back).
+- CHAMPIONS: every elite room has a champion (Frenzied, Armored or Volatile) with a coloured ring. Triple rewards.
+- THE WANDERING MERCHANT: in some runs, room 4 is a merchant instead of the shrine. Spend your run's Echoes on Rare
+  and Epic Gifts or a full heal. Spending lowers what you bring home.
+- SIX NEW GIFTS (16 total): Ember Brand (burn), Chain Lightning, Thorned Mantle, Gilded Touch (more Echoes),
+  Lamplight Blessing (regeneration), Executioner's Eye (bonus damage to wounded enemies).
+- All four Lines have new enemy mixes.
 
-FROM 0.6 AND EARLIER
-- Obsidian Road + Lord of Mictlan, real CC0 interface sounds, options menu, HUD icons, Rime Road + Frost Jarl,
-  gamepad support, real CC0 pixel art, title screen, saves, hub with Oru / Mara / Sable / Bryn, Forge, Ledger,
-  Keeper level, five-room runs with doors, shrine bargains, gifts with rarity, pause menu, Windows export preset.
+FROM 0.8 AND EARLIER
+- Ascension difficulty, contracts from Mara, 21 achievements, key rebinding, original music, store kit, The Hollow and
+  six endings, 3D relief lighting, HD sprites, Obsidian + Rime Roads, gamepad support, saves, hub, forge, ledger.
 
 If anything goes wrong, copy the red/yellow text from the Output panel (or take a screenshot) and send it to me.

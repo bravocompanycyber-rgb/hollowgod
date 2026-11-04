@@ -78,6 +78,7 @@ func setup(p_kind, p_target):
     spawn_total = 1.4
     spawn_left = 1.4
     mat_scale = sprite_scale
+    hp_max = max_hp
 
 func _physics_process(delta):
     if dead:
@@ -85,6 +86,9 @@ func _physics_process(delta):
     clock += delta
     flash = max(0.0, flash - delta)
     touch_cooldown = max(0.0, touch_cooldown - delta)
+    _burn_tick(delta)
+    if dead:
+        return
     if spawning:
         spawn_left -= delta
         if spawn_left <= 0.0:
@@ -142,7 +146,7 @@ func _physics_process(delta):
         wave_r = 470.0 * (1.0 - clamp(t / 0.75, 0.0, 1.0))
         if not wave_hit and abs(to_t.length() - wave_r) < 28.0:
             wave_hit = true
-            target.take_damage(22, global_position)
+            target.take_damage(int(round(22 * Game.asc_damage())), global_position)
         if t <= 0.0:
             state = "recover"
             t = 0.8
@@ -209,10 +213,16 @@ func _fire_fan(dir):
     FX.shake(5.0)
     Sfx.play("boss", -2.0)
 
-func take_hit(amount, dir, crit = false):
+func take_hit(amount, dir, crit = false, from_burn = false):
     if dead or spawning:
         return
     hp -= amount
+    if from_burn:
+        FX.popup(global_position, int(round(amount)), Color(1.0, 0.6, 0.2), 14)
+        emit_signal("hp_changed", int(max(hp, 0)), max_hp)
+        if hp <= 0:
+            _die()
+        return
     flash = 0.08
     FX.shake(3.0)
     if crit:

@@ -21,12 +21,15 @@ You are a Threshold Keeper, a transit worker who died on the first night and was
 - Fast action combat: strike, dash through danger, and swat enemy bolts out of the air.
 - Roguelite loop: die, return to the Terminus station, grow stronger, and learn why you were brought back.
 - Pick your path through doors that offer Gifts, Echoes or healing. Find shrines that offer dangerous bargains.
-- Gifts come in Common, Rare and Epic with clear descriptions and powerful synergies.
+- 16 Gifts in Common, Rare and Epic, with clear descriptions and powerful synergies: burning, chain lightning, thorns, executes and more.
+- New threats: bombers with a fuse, shielded guardians you must outflank, and champion elites with deadly modifiers.
+- A wandering merchant sometimes waits instead of the shrine: spend your run's Echoes on Rare and Epic Gifts.
 - Meet Oru, Mara, Sable and Bryn at the Terminus. Conversations change with what you have done.
 - Four Lines, four bosses, and a Reckoning at the end of each: Restore, Bind or Release the dying gods. The Ledger remembers.
 - Six different endings, decided by the choices you made along the way (one of them is secret).
 - Real-time lighting and shadows, smoothed pixel-art characters, and an option to switch effects off for older PCs.
-- Permanent upgrades from the forge, Keeper levels, save and continue, gamepad support.
+- Permanent upgrades from the forge, Keeper levels, save and continue, gamepad support, rebindable keys.
+- Replayability: five Ascension heat levels for better rewards, contracts from Mara, 21 achievements, and original music for every Line.
 
 ## Tags
 Action Roguelite, Roguelike, Pixel Graphics, Dark Fantasy, Mythology, Story Rich, Choices Matter, Singleplayer, 2D, Controller

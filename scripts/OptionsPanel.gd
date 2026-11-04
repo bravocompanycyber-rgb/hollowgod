@@ -7,6 +7,8 @@ var music_slider = null
 var sfx_slider = null
 var full_button = null
 var fx_button = null
+var keys_button = null
+var controls = null
 var back_button = null
 
 func _init():
@@ -30,7 +32,9 @@ func _ready():
     full_button.connect("pressed", self, "_toggle_full")
     fx_button = _button("", Vector2(440, 490), Vector2(400, 46))
     fx_button.connect("pressed", self, "_toggle_fx")
-    back_button = _button("Back", Vector2(440, 565), Vector2(400, 46))
+    keys_button = _button("Key bindings", Vector2(440, 550), Vector2(400, 46))
+    keys_button.connect("pressed", self, "_open_keys")
+    back_button = _button("Back", Vector2(440, 618), Vector2(400, 46))
     back_button.connect("pressed", self, "_close")
     _refresh()
     music_slider.connect("value_changed", self, "_music_changed")
@@ -94,6 +98,18 @@ func _toggle_full():
     Game.apply_settings()
     Sfx.play("click")
     _refresh()
+
+func _open_keys():
+    Sfx.play("click")
+    if controls == null:
+        controls = load("res://scripts/ControlsPanel.gd").new()
+        controls.visible = false
+        add_child(controls)
+        controls.connect("closed", self, "_keys_closed")
+    controls.open()
+
+func _keys_closed():
+    back_button.grab_focus()
 
 func _toggle_fx():
     Game.settings["effects"] = not Game.settings["effects"]

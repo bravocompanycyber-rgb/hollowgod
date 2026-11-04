@@ -13,7 +13,8 @@ Last written from general knowledge, not live Steam documentation.
 - [ ] Short description (one or two sentences) and long description (see `docs/STORE_COPY.md`).
 - [ ] 5 or more screenshots, 1920x1080, showing real gameplay (combat, hub, choices, bosses).
 - [ ] Trailer (30 to 60 seconds, gameplay in the first 5 seconds).
-- [ ] Capsule and header images. Typical sizes (verify current list): Header 460x215, Small 231x87, Main 616x353,
+- [x] Capsule and header images (first versions are in the `store` folder, see docs/STORE_ASSETS.md; replace with commissioned art later).
+- [ ] Capsule and header images (final). Typical sizes (verify current list): Header 460x215, Small 231x87, Main 616x353,
       Vertical 374x448, Library capsule 600x900, Library hero 3840x1240, Logo 1280x720 (transparent).
 - [ ] Tags (examples): Action Roguelite, Roguelike, Pixel Graphics, Dark Fantasy, Story Rich, Mythology, Choices Matter, Singleplayer.
 - [ ] System requirements (this game is light: old dual-core PC, 4 GB RAM, Intel integrated graphics with OpenGL 2.1).
